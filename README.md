@@ -1,4 +1,5 @@
 # UV UI Tool
+# IN DEVELOPMENT
 
 A starter VS Code extension scaffold for building a UI that runs `uv` commands.
 
