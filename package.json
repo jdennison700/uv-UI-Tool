@@ -10,7 +10,9 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:uv-ui-tool.openPanel"
+    "onCommand:uv-ui-tool.openPanel",
+    "onCommand:uv-ui-tool.openSidebar",
+    "onView:uvUiToolSidebar"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -20,10 +22,32 @@
         "title": "UV UI Tool: Open Panel"
       },
       {
+        "command": "uv-ui-tool.openSidebar",
+        "title": "UV UI Tool: Open Sidebar"
+      },
+      {
         "command": "uv-ui-tool.helloWorld",
         "title": "UV UI Tool: Hello World"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "uvUiTool",
+          "title": "UV UI Tool",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "uvUiTool": [
+        {
+          "id": "uvUiToolSidebar",
+          "name": "UV UI Tool",
+          "type": "webview"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
