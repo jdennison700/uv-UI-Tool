@@ -2,6 +2,7 @@
   "name": "uv-ui-tool",
   "displayName": "UV UI Tool",
   "description": "A VS Code extension providing a UI to run uv commands.",
+  "icon": "media/icon.svg",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.116.0"
