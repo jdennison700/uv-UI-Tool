@@ -1,11 +1,14 @@
 const vscode = acquireVsCodeApi();
 const runButton = document.getElementById('runButton');
+const commandInput = document.getElementById('commandInput');
 const output = document.getElementById('output');
 
 runButton?.addEventListener('click', () => {
+  const commandText = commandInput?.value?.trim() || 'uv --version';
+
   vscode.postMessage({
     command: 'runUvCommand',
-    text: 'uv --version'
+    text: commandText
   });
 });
 

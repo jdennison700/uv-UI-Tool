@@ -40,6 +40,58 @@ export function activate(context: vscode.ExtensionContext) {
   );
 }
 
+function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): string {
+  const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'style.css'));
+  const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'script.js'));
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="${styleUri}" />
+  <title>UV UI Tool</title>
+</head>
+<body>
+  <div class="container">
+    <h1>UV UI Tool</h1>
+    <p>Send a shell command to the user's machine and run it in an integrated terminal.</p>
+    <input id="commandInput" type="text" placeholder="uv --version" />
+    <button id="runButton">Run UV command</button>
+    <div id="output" class="output">Output from the extension will appear here.</div>
+  </div>
+  <script src="${scriptUri}"></script>
+</body>
+</html>`;
+}
+
+let uvUiToolTerminal: vscode.Terminal | undefined;
+
+function runUvCommand(commandText: string, webview?: vscode.Webview) {
+  if (!commandText || !commandText.trim()) {
+    vscode.window.showErrorMessage('Please provide a command to run.');
+    webview?.postMessage({ command: 'setOutput', text: 'Command was empty.' });
+    return;
+  }
+
+  if (!uvUiToolTerminal) {
+    uvUiToolTerminal = vscode.window.createTerminal({
+      name: 'UV UI Tool',
+      cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+    });
+
+    vscode.window.onDidCloseTerminal(closedTerminal => {
+      if (closedTerminal === uvUiToolTerminal) {
+        uvUiToolTerminal = undefined;
+      }
+    });
+  }
+
+  uvUiToolTerminal.show(true);
+  uvUiToolTerminal.sendText(commandText, true);
+  webview?.postMessage({ command: 'setOutput', text: `Running command in terminal: ${commandText}` });
+}
+
 class UVPanel {
   public static currentPanel: UVPanel | undefined;
   private readonly panel: vscode.WebviewPanel;
@@ -80,45 +132,17 @@ class UVPanel {
   }
 
   private update() {
-    this.panel.webview.html = this.getHtmlForWebview(this.panel.webview);
+    this.panel.webview.html = getHtmlForWebview(this.panel.webview, this.extensionUri);
   }
 
   private setWebviewMessageListener(webview: vscode.Webview) {
     webview.onDidReceiveMessage(message => {
       switch (message.command) {
         case 'runUvCommand':
-          this.runUvCommand(message.text);
+          runUvCommand(message.text, webview);
           break;
       }
     });
-  }
-
-  private async runUvCommand(commandText: string) {
-    vscode.window.showInformationMessage(`Received command: ${commandText}`);
-  }
-
-  private getHtmlForWebview(webview: vscode.Webview): string {
-    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'style.css'));
-    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'script.js'));
-
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="${styleUri}" />
-  <title>UV UI Tool</title>
-</head>
-<body>
-  <div class="container">
-    <h1>UV UI Tool</h1>
-    <p>Use this sidebar as the starting point for a UI that runs <code>uv</code> commands.</p>
-    <button id="runButton">Run UV command</button>
-    <div id="output" class="output">Output from the extension will appear here.</div>
-  </div>
-  <script src="${scriptUri}"></script>
-</body>
-</html>`;
   }
 }
 
@@ -136,46 +160,18 @@ class UVSidebarProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')]
     };
 
-    webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
+    webviewView.webview.html = getHtmlForWebview(webviewView.webview, this.extensionUri);
     this.setWebviewMessageListener(webviewView.webview);
-  }
-
-  private getHtmlForWebview(webview: vscode.Webview): string {
-    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'style.css'));
-    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'script.js'));
-
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="${styleUri}" />
-  <title>UV UI Tool</title>
-</head>
-<body>
-  <div class="container">
-    <h1>UV UI Tool</h1>
-    <p>Use this sidebar as the starting point for a UI that runs <code>uv</code> commands.</p>
-    <button id="runButton">Run UV command</button>
-    <div id="output" class="output">Output from the extension will appear here.</div>
-  </div>
-  <script src="${scriptUri}"></script>
-</body>
-</html>`;
   }
 
   private setWebviewMessageListener(webview: vscode.Webview) {
     webview.onDidReceiveMessage(message => {
       switch (message.command) {
         case 'runUvCommand':
-          this.runUvCommand(message.text);
+          runUvCommand(message.text, webview);
           break;
       }
     });
-  }
-
-  private async runUvCommand(commandText: string) {
-    vscode.window.showInformationMessage(`Received command: ${commandText}`);
   }
 }
 
