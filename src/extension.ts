@@ -43,6 +43,12 @@ export function activate(context: vscode.ExtensionContext) {
 
 type UvDetectionResult = { isUvProject: boolean; projectRoot?: string; message: string };
 type UvLockedPackage = { name: string; version?: string; dependencies: string[] };
+type UvDependenciesPayload = {
+  packageCount: number;
+  edgeCount: number;
+  withoutDependenciesCount: number;
+  packages: UvLockedPackage[];
+};
 
 async function uriExists(uri: vscode.Uri): Promise<boolean> {
   try {
@@ -241,23 +247,17 @@ function parseUvLockDependencies(lockFileContent: string): UvLockedPackage[] {
   return packages;
 }
 
-function formatDependenciesForOutput(parsedPackages: UvLockedPackage[]): string {
-  if (parsedPackages.length === 0) {
-    return 'No packages were parsed from uv.lock.';
-  }
+function buildDependenciesPayload(parsedPackages: UvLockedPackage[]): UvDependenciesPayload {
+  const sortedPackages = [...parsedPackages].sort((a, b) => a.name.localeCompare(b.name));
+  const edgeCount = sortedPackages.reduce((sum, pkg) => sum + pkg.dependencies.length, 0);
+  const withoutDependenciesCount = sortedPackages.filter(pkg => pkg.dependencies.length === 0).length;
 
-  const totalEdges = parsedPackages.reduce((sum, pkg) => sum + pkg.dependencies.length, 0);
-  const header = `Parsed ${parsedPackages.length} packages and ${totalEdges} dependency edges from uv.lock.`;
-
-  const packageLines = parsedPackages.map(pkg => {
-    const versionSuffix = pkg.version ? `==${pkg.version}` : '';
-    const dependencyList = pkg.dependencies.length > 0
-      ? pkg.dependencies.join(', ')
-      : '(no direct dependencies)';
-    return `- ${pkg.name}${versionSuffix}: ${dependencyList}`;
-  });
-
-  return [header, '', ...packageLines].join('\n');
+  return {
+    packageCount: sortedPackages.length,
+    edgeCount,
+    withoutDependenciesCount,
+    packages: sortedPackages
+  };
 }
 
 async function parseAndSendUvLockDependencies(webview: vscode.Webview) {
@@ -283,10 +283,11 @@ async function parseAndSendUvLockDependencies(webview: vscode.Webview) {
   const rawLockContent = await vscode.workspace.fs.readFile(lockFileUri);
   const lockContent = new TextDecoder('utf-8').decode(rawLockContent);
   const parsedPackages = parseUvLockDependencies(lockContent);
+  const payload = buildDependenciesPayload(parsedPackages);
 
   webview.postMessage({
-    command: 'setOutput',
-    text: formatDependenciesForOutput(parsedPackages)
+    command: 'setDependenciesOutput',
+    ...payload
   });
 }
 
@@ -344,7 +345,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
         <div class="output-header">
           <h2>Output</h2>
         </div>
-        <pre id="output" class="output">Output from the extension will appear here.</pre>
+        <div id="output" class="output output-plain">Output from the extension will appear here.</div>
       </section>
     </main>
   </div>
