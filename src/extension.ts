@@ -303,14 +303,50 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
   <title>UV UI Tool</title>
 </head>
 <body>
-  <div class="container">
-    <h1>UV UI Tool</h1>
-    <p>Send a shell command to the user's machine and run it in an integrated terminal.</p>
-    <div id="projectStatus" class="status">Detecting UV project...</div>
-    <input id="commandInput" type="text" placeholder="uv --version" />
-    <button id="runButton">Run UV command</button>
-    <button id="parseDependenciesButton">Parse uv.lock dependencies</button>
-    <div id="output" class="output">Output from the extension will appear here.</div>
+  <div class="app-shell">
+    <div class="background-glow background-glow-top"></div>
+    <div class="background-glow background-glow-bottom"></div>
+
+    <main class="container">
+      <header class="hero">
+        <p class="eyebrow">Python Environment</p>
+        <h1>UV UI Tool</h1>
+        <p class="subtitle">Run UV commands, inspect dependencies, and keep context close at hand.</p>
+      </header>
+
+      <section class="status-card">
+        <div class="status-meta">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span class="status-label">Workspace status</span>
+        </div>
+        <div id="projectStatus" class="status">Detecting UV project...</div>
+      </section>
+
+      <section class="command-card">
+        <label for="commandInput" class="input-label">Command</label>
+        <div class="command-row">
+          <input id="commandInput" type="text" placeholder="uv --version" spellcheck="false" />
+          <button id="runButton" class="btn btn-primary">Run</button>
+        </div>
+        <div class="quick-actions" aria-label="Quick commands">
+          <button type="button" class="chip" data-command="uv --version">Version</button>
+          <button type="button" class="chip" data-command="uv sync">Sync</button>
+          <button type="button" class="chip" data-command="uv lock">Lock</button>
+          <button type="button" class="chip" data-command="uv pip list">Packages</button>
+        </div>
+      </section>
+
+      <section class="actions-row">
+        <button id="parseDependenciesButton" class="btn btn-secondary">Parse uv.lock dependencies</button>
+      </section>
+
+      <section class="output-card">
+        <div class="output-header">
+          <h2>Output</h2>
+        </div>
+        <pre id="output" class="output">Output from the extension will appear here.</pre>
+      </section>
+    </main>
   </div>
   <script src="${scriptUri}"></script>
 </body>
