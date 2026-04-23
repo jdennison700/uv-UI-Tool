@@ -42,6 +42,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 type UvDetectionResult = { isUvProject: boolean; projectRoot?: string; message: string };
+type UvLockedPackage = { name: string; version?: string; dependencies: string[] };
 
 async function uriExists(uri: vscode.Uri): Promise<boolean> {
   try {
@@ -158,6 +159,137 @@ function sendProjectStatus(webview: vscode.Webview) {
   });
 }
 
+function parseDependencyNamesFromArrayBlock(block: string): string[] {
+  const dependencyNames = new Set<string>();
+  const namePattern = /name\s*=\s*"([^"]+)"/g;
+
+  let match: RegExpExecArray | null;
+  while ((match = namePattern.exec(block)) !== null) {
+    dependencyNames.add(match[1]);
+  }
+
+  return Array.from(dependencyNames);
+}
+
+function parseUvLockDependencies(lockFileContent: string): UvLockedPackage[] {
+  const lines = lockFileContent.split(/\r?\n/);
+  const packages: UvLockedPackage[] = [];
+
+  let currentPackage: UvLockedPackage | undefined;
+
+  const pushCurrentPackage = () => {
+    if (!currentPackage?.name) {
+      return;
+    }
+
+    currentPackage.dependencies = Array.from(new Set(currentPackage.dependencies)).sort();
+    packages.push(currentPackage);
+  };
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i].trim();
+
+    if (line === '[[package]]') {
+      pushCurrentPackage();
+      currentPackage = { name: '', dependencies: [] };
+      continue;
+    }
+
+    if (!currentPackage) {
+      continue;
+    }
+
+    const nameMatch = line.match(/^name\s*=\s*"([^"]+)"/);
+    if (nameMatch) {
+      currentPackage.name = nameMatch[1];
+      continue;
+    }
+
+    const versionMatch = line.match(/^version\s*=\s*"([^"]+)"/);
+    if (versionMatch) {
+      currentPackage.version = versionMatch[1];
+      continue;
+    }
+
+    if (/^dependencies\s*=\s*\[/.test(line)) {
+      let dependencyBlock = line;
+      let bracketDepth = 0;
+
+      const countBrackets = (value: string) => {
+        for (const char of value) {
+          if (char === '[') {
+            bracketDepth += 1;
+          } else if (char === ']') {
+            bracketDepth -= 1;
+          }
+        }
+      };
+
+      countBrackets(line);
+
+      while (bracketDepth > 0 && i + 1 < lines.length) {
+        i += 1;
+        dependencyBlock += `\n${lines[i]}`;
+        countBrackets(lines[i]);
+      }
+
+      currentPackage.dependencies.push(...parseDependencyNamesFromArrayBlock(dependencyBlock));
+    }
+  }
+
+  pushCurrentPackage();
+  return packages;
+}
+
+function formatDependenciesForOutput(parsedPackages: UvLockedPackage[]): string {
+  if (parsedPackages.length === 0) {
+    return 'No packages were parsed from uv.lock.';
+  }
+
+  const totalEdges = parsedPackages.reduce((sum, pkg) => sum + pkg.dependencies.length, 0);
+  const header = `Parsed ${parsedPackages.length} packages and ${totalEdges} dependency edges from uv.lock.`;
+
+  const packageLines = parsedPackages.map(pkg => {
+    const versionSuffix = pkg.version ? `==${pkg.version}` : '';
+    const dependencyList = pkg.dependencies.length > 0
+      ? pkg.dependencies.join(', ')
+      : '(no direct dependencies)';
+    return `- ${pkg.name}${versionSuffix}: ${dependencyList}`;
+  });
+
+  return [header, '', ...packageLines].join('\n');
+}
+
+async function parseAndSendUvLockDependencies(webview: vscode.Webview) {
+  const detection = await detectUvProject();
+  if (!detection.isUvProject || !detection.projectRoot) {
+    webview.postMessage({
+      command: 'setOutput',
+      text: detection.message
+    });
+    return;
+  }
+
+  const lockFileUri = vscode.Uri.joinPath(vscode.Uri.file(detection.projectRoot), 'uv.lock');
+  const hasLock = await uriExists(lockFileUri);
+  if (!hasLock) {
+    webview.postMessage({
+      command: 'setOutput',
+      text: `No uv.lock file found in ${detection.projectRoot}.`
+    });
+    return;
+  }
+
+  const rawLockContent = await vscode.workspace.fs.readFile(lockFileUri);
+  const lockContent = new TextDecoder('utf-8').decode(rawLockContent);
+  const parsedPackages = parseUvLockDependencies(lockContent);
+
+  webview.postMessage({
+    command: 'setOutput',
+    text: formatDependenciesForOutput(parsedPackages)
+  });
+}
+
 function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'style.css'));
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'script.js'));
@@ -177,6 +309,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
     <div id="projectStatus" class="status">Detecting UV project...</div>
     <input id="commandInput" type="text" placeholder="uv --version" />
     <button id="runButton">Run UV command</button>
+    <button id="parseDependenciesButton">Parse uv.lock dependencies</button>
     <div id="output" class="output">Output from the extension will appear here.</div>
   </div>
   <script src="${scriptUri}"></script>
@@ -268,6 +401,9 @@ class UVPanel {
         case 'runUvCommand':
           await runUvCommand(message.text, webview);
           break;
+        case 'parseDependencies':
+          await parseAndSendUvLockDependencies(webview);
+          break;
       }
     });
   }
@@ -297,6 +433,9 @@ class UVSidebarProvider implements vscode.WebviewViewProvider {
       switch (message.command) {
         case 'runUvCommand':
           await runUvCommand(message.text, webview);
+          break;
+        case 'parseDependencies':
+          await parseAndSendUvLockDependencies(webview);
           break;
       }
     });
