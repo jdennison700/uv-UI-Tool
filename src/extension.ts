@@ -1,5 +1,6 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
+import * as path from 'path';
 import * as vscode from 'vscode';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -40,6 +41,123 @@ export function activate(context: vscode.ExtensionContext) {
   );
 }
 
+type UvDetectionResult = { isUvProject: boolean; projectRoot?: string; message: string };
+
+async function uriExists(uri: vscode.Uri): Promise<boolean> {
+  try {
+    await vscode.workspace.fs.stat(uri);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function findUvProjectFromPath(startFilePath: string, workspaceRootPath: string): Promise<UvDetectionResult | undefined> {
+  let currentPath = path.dirname(startFilePath);
+
+  while (currentPath.startsWith(workspaceRootPath)) {
+    const currentUri = vscode.Uri.file(currentPath);
+    const hasUvLock = await uriExists(vscode.Uri.joinPath(currentUri, 'uv.lock'));
+    if (hasUvLock) {
+      return {
+        isUvProject: true,
+        projectRoot: currentPath,
+        message: `UV project detected in ${path.basename(currentPath)} (found uv.lock).`
+      };
+    }
+
+    const hasUvToml = await uriExists(vscode.Uri.joinPath(currentUri, 'uv.toml'));
+    if (hasUvToml) {
+      return {
+        isUvProject: true,
+        projectRoot: currentPath,
+        message: `UV project detected in ${path.basename(currentPath)} (found uv.toml).`
+      };
+    }
+
+    const hasPyproject = await uriExists(vscode.Uri.joinPath(currentUri, 'pyproject.toml'));
+    if (hasPyproject) {
+      return {
+        isUvProject: true,
+        projectRoot: currentPath,
+        message: `Project detected in ${path.basename(currentPath)} (found pyproject.toml).`
+      };
+    }
+
+    const parentPath = path.dirname(currentPath);
+    if (parentPath === currentPath) {
+      break;
+    }
+
+    currentPath = parentPath;
+  }
+
+  return undefined;
+}
+
+async function detectUvProject(): Promise<UvDetectionResult> {
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  if (folders.length === 0) {
+    return { isUvProject: false, message: 'No workspace folder is open. Open a folder to detect a UV project.' };
+  }
+
+  const activeDocumentPath = vscode.window.activeTextEditor?.document?.uri?.fsPath;
+  if (activeDocumentPath) {
+    for (const folder of folders) {
+      if (activeDocumentPath.startsWith(folder.uri.fsPath)) {
+        const activeFileDetection = await findUvProjectFromPath(activeDocumentPath, folder.uri.fsPath);
+        if (activeFileDetection) {
+          return activeFileDetection;
+        }
+      }
+    }
+  }
+
+  const lockFiles = await vscode.workspace.findFiles('**/uv.lock', '**/node_modules/**', 10);
+  if (lockFiles.length > 0) {
+    const fileUri = lockFiles[0];
+    const folder = vscode.workspace.getWorkspaceFolder(fileUri);
+    const folderName = folder?.name ?? fileUri.path.split('/').slice(-2, -1)[0] ?? 'workspace';
+    return {
+      isUvProject: true,
+      projectRoot: folder?.uri.fsPath ?? folders[0].uri.fsPath,
+      message: `UV project detected in ${folderName} (found uv.lock).`
+    };
+  }
+
+  const uvTomlFiles = await vscode.workspace.findFiles('**/uv.toml', '**/node_modules/**', 10);
+  if (uvTomlFiles.length > 0) {
+    const fileUri = uvTomlFiles[0];
+    const folder = vscode.workspace.getWorkspaceFolder(fileUri);
+    const folderName = folder?.name ?? fileUri.path.split('/').slice(-2, -1)[0] ?? 'workspace';
+    return {
+      isUvProject: true,
+      projectRoot: path.dirname(fileUri.fsPath),
+      message: `UV project detected in ${folderName} (found uv.toml).`
+    };
+  }
+
+  const pyprojectFiles = await vscode.workspace.findFiles('**/pyproject.toml', '**/node_modules/**', 20);
+  if (pyprojectFiles.length > 0) {
+    const fileUri = pyprojectFiles[0];
+    const folder = vscode.workspace.getWorkspaceFolder(fileUri);
+    const folderName = folder?.name ?? fileUri.path.split('/').slice(-2, -1)[0] ?? 'workspace';
+    return {
+      isUvProject: true,
+      projectRoot: path.dirname(fileUri.fsPath),
+      message: `Project detected in ${folderName} (found pyproject.toml).`
+    };
+  }
+
+  return { isUvProject: false, message: 'No UV project detected in the current workspace.' };
+}
+
+function sendProjectStatus(webview: vscode.Webview) {
+  detectUvProject().then(status => {
+    webview.postMessage({ command: 'setProjectStatus', ...status });
+  });
+}
+
 function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'style.css'));
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'script.js'));
@@ -56,6 +174,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
   <div class="container">
     <h1>UV UI Tool</h1>
     <p>Send a shell command to the user's machine and run it in an integrated terminal.</p>
+    <div id="projectStatus" class="status">Detecting UV project...</div>
     <input id="commandInput" type="text" placeholder="uv --version" />
     <button id="runButton">Run UV command</button>
     <div id="output" class="output">Output from the extension will appear here.</div>
@@ -67,7 +186,14 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
 
 let uvUiToolTerminal: vscode.Terminal | undefined;
 
-function runUvCommand(commandText: string, webview?: vscode.Webview) {
+async function runUvCommand(commandText: string, webview?: vscode.Webview) {
+  const detection = await detectUvProject();
+  if (!detection.isUvProject) {
+    vscode.window.showErrorMessage('No UV project detected in the current workspace.');
+    webview?.postMessage({ command: 'setOutput', text: detection.message });
+    return;
+  }
+
   if (!commandText || !commandText.trim()) {
     vscode.window.showErrorMessage('Please provide a command to run.');
     webview?.postMessage({ command: 'setOutput', text: 'Command was empty.' });
@@ -77,7 +203,7 @@ function runUvCommand(commandText: string, webview?: vscode.Webview) {
   if (!uvUiToolTerminal) {
     uvUiToolTerminal = vscode.window.createTerminal({
       name: 'UV UI Tool',
-      cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+      cwd: detection.projectRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
     });
 
     vscode.window.onDidCloseTerminal(closedTerminal => {
@@ -133,13 +259,14 @@ class UVPanel {
 
   private update() {
     this.panel.webview.html = getHtmlForWebview(this.panel.webview, this.extensionUri);
+    sendProjectStatus(this.panel.webview);
   }
 
   private setWebviewMessageListener(webview: vscode.Webview) {
-    webview.onDidReceiveMessage(message => {
+    webview.onDidReceiveMessage(async message => {
       switch (message.command) {
         case 'runUvCommand':
-          runUvCommand(message.text, webview);
+          await runUvCommand(message.text, webview);
           break;
       }
     });
@@ -162,13 +289,14 @@ class UVSidebarProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = getHtmlForWebview(webviewView.webview, this.extensionUri);
     this.setWebviewMessageListener(webviewView.webview);
+    sendProjectStatus(webviewView.webview);
   }
 
   private setWebviewMessageListener(webview: vscode.Webview) {
-    webview.onDidReceiveMessage(message => {
+    webview.onDidReceiveMessage(async message => {
       switch (message.command) {
         case 'runUvCommand':
-          runUvCommand(message.text, webview);
+          await runUvCommand(message.text, webview);
           break;
       }
     });
