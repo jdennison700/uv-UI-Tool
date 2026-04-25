@@ -4,7 +4,7 @@ const parseDependenciesButton = document.getElementById('parseDependenciesButton
 const commandInput = document.getElementById('commandInput');
 const output = document.getElementById('output');
 const projectStatus = document.getElementById('projectStatus');
-const quickCommandButtons = document.querySelectorAll('.chip[data-command]');
+const commandSelectButtons = document.querySelectorAll('.command-select-btn[data-command]');
 
 const setPlainOutput = text => {
   if (!output) {
@@ -194,7 +194,7 @@ commandInput?.addEventListener('keydown', event => {
   }
 });
 
-quickCommandButtons.forEach(button => {
+commandSelectButtons.forEach(button => {
   button.addEventListener('click', () => {
     const command = button.getAttribute('data-command');
     if (!commandInput || !command) {
@@ -250,7 +250,7 @@ window.addEventListener('message', event => {
       commandInput.disabled = !enabled;
     }
 
-    quickCommandButtons.forEach(button => {
+    commandSelectButtons.forEach(button => {
       button.disabled = !enabled;
     });
   }
