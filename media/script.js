@@ -16,6 +16,17 @@ const setPlainOutput = text => {
   output.textContent = text;
 };
 
+const appendPlainOutput = text => {
+  if (!output) {
+    return;
+  }
+
+  output.classList.remove('output-dependencies');
+  output.classList.add('output-plain');
+  output.textContent += text;
+  output.scrollTop = output.scrollHeight;
+};
+
 const createSummaryStat = (label, value) => {
   const stat = document.createElement('div');
   stat.className = 'deps-stat';
@@ -208,6 +219,18 @@ window.addEventListener('message', event => {
     setDependenciesOutput(message);
     setBusy(runButton, false, 'Running...');
     setBusy(parseDependenciesButton, false, 'Parsing...');
+  }
+
+  if (message.command === 'clearOutput') {
+    setPlainOutput('');
+  }
+
+  if (message.command === 'appendOutput') {
+    appendPlainOutput(message.text ?? '');
+  }
+
+  if (message.command === 'commandFinished') {
+    setBusy(runButton, false, 'Running...');
   }
 
   if (message.command === 'setProjectStatus') {

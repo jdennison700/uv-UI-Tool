@@ -1,6 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as path from 'path';
+import { spawn } from 'child_process';
 import * as vscode from 'vscode';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -354,7 +355,13 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
 </html>`;
 }
 
-let uvUiToolTerminal: vscode.Terminal | undefined;
+function postAppendOutput(webview: vscode.Webview | undefined, text: string) {
+  if (!text) {
+    return;
+  }
+
+  webview?.postMessage({ command: 'appendOutput', text });
+}
 
 async function runUvCommand(commandText: string, webview?: vscode.Webview) {
   const detection = await detectUvProject();
@@ -370,22 +377,62 @@ async function runUvCommand(commandText: string, webview?: vscode.Webview) {
     return;
   }
 
-  if (!uvUiToolTerminal) {
-    uvUiToolTerminal = vscode.window.createTerminal({
-      name: 'UV UI Tool',
-      cwd: detection.projectRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
-    });
-
-    vscode.window.onDidCloseTerminal(closedTerminal => {
-      if (closedTerminal === uvUiToolTerminal) {
-        uvUiToolTerminal = undefined;
-      }
-    });
+  const projectRoot = detection.projectRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!projectRoot) {
+    webview?.postMessage({ command: 'setOutput', text: 'Unable to determine the project root for command execution.' });
+    return;
   }
 
-  uvUiToolTerminal.show(true);
-  uvUiToolTerminal.sendText(commandText, true);
-  webview?.postMessage({ command: 'setOutput', text: `Running command in terminal: ${commandText}` });
+  const shell = process.platform === 'win32'
+    ? process.env.ComSpec ?? 'cmd.exe'
+    : process.env.SHELL ?? '/bin/bash';
+  const shellArgs = process.platform === 'win32'
+    ? ['/d', '/s', '/c', commandText]
+    : ['-lc', commandText];
+
+  webview?.postMessage({ command: 'clearOutput' });
+  postAppendOutput(webview, `$ ${commandText}\n\n`);
+
+  await new Promise<void>(resolve => {
+    const commandProcess = spawn(shell, shellArgs, {
+      cwd: projectRoot,
+      env: process.env,
+      windowsHide: true
+    });
+
+    let resolved = false;
+    const finalize = () => {
+      if (!resolved) {
+        resolved = true;
+        resolve();
+      }
+    };
+
+    commandProcess.stdout.on('data', (chunk: Buffer | string) => {
+      postAppendOutput(webview, chunk.toString());
+    });
+
+    commandProcess.stderr.on('data', (chunk: Buffer | string) => {
+      postAppendOutput(webview, chunk.toString());
+    });
+
+    commandProcess.on('error', error => {
+      postAppendOutput(webview, `Failed to run command: ${error.message}\n`);
+      finalize();
+    });
+
+    commandProcess.on('close', (code, signal) => {
+      if (signal) {
+        postAppendOutput(webview, `\nCommand terminated by signal: ${signal}\n`);
+      } else if (typeof code === 'number' && code !== 0) {
+        postAppendOutput(webview, `\nCommand exited with code: ${code}\n`);
+      }
+
+      finalize();
+    });
+  });
+
+  webview?.postMessage({ command: 'commandFinished' });
 }
 
 class UVPanel {
