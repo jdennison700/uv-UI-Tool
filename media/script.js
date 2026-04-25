@@ -144,11 +144,14 @@ const setBusy = (button, isBusy, busyLabel) => {
   }
 
   if (isBusy) {
+    button.dataset.wasDisabledBeforeBusy = button.disabled ? 'true' : 'false';
     button.disabled = true;
     button.textContent = busyLabel;
     return;
   }
 
+  button.disabled = button.dataset.wasDisabledBeforeBusy === 'true';
+  delete button.dataset.wasDisabledBeforeBusy;
   button.textContent = button.dataset.defaultText;
 };
 
