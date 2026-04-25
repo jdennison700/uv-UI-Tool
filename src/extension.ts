@@ -311,9 +311,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
 
     <main class="container">
       <header class="hero">
-        <p class="eyebrow">Python Environment</p>
         <h1>UV UI Tool</h1>
-        <p class="subtitle">Run UV commands, inspect dependencies, and keep context close at hand.</p>
       </header>
 
       <section class="status-card">
