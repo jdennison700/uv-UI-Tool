@@ -8,6 +8,7 @@ export function activate(context: vscode.ExtensionContext) {
   console.log('UV UI Tool activated');
   const openPanelCommand = 'uv-ui-tool.openPanel';
   const openSidebarCommand = 'uv-ui-tool.openSidebar';
+  const openDependencyGraphCommand = 'uv-ui-tool.openDependencyGraph';
   const helloCommand = 'uv-ui-tool.helloWorld';
 
   context.subscriptions.push(
@@ -19,6 +20,18 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand(openSidebarCommand, async () => {
       await vscode.commands.executeCommand('workbench.view.extension.uvUiTool');
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(openDependencyGraphCommand, async () => {
+      const parseResult = await parseUvLockDependenciesPayload();
+      if (!parseResult.payload) {
+        vscode.window.showErrorMessage(parseResult.message);
+        return;
+      }
+
+      UVDependencyGraphPanel.createOrShow(context.extensionUri, parseResult.payload, parseResult.projectRoot);
     })
   );
 
@@ -50,6 +63,7 @@ type UvDependenciesPayload = {
   withoutDependenciesCount: number;
   packages: UvLockedPackage[];
 };
+type UvParseResult = { payload?: UvDependenciesPayload; message: string; projectRoot?: string };
 
 async function uriExists(uri: vscode.Uri): Promise<boolean> {
   try {
@@ -261,24 +275,35 @@ function buildDependenciesPayload(parsedPackages: UvLockedPackage[]): UvDependen
   };
 }
 
-async function parseAndSendUvLockDependencies(webview: vscode.Webview) {
+async function parseAndSendUvLockDependencies(webview: vscode.Webview, extensionUri: vscode.Uri) {
+  const parseResult = await parseUvLockDependenciesPayload();
+  if (!parseResult.payload) {
+    vscode.window.showErrorMessage(parseResult.message);
+    webview.postMessage({ command: 'parseFinished' });
+    return;
+  }
+
+  UVDependencyGraphPanel.createOrShow(extensionUri, parseResult.payload, parseResult.projectRoot);
+  webview.postMessage({ command: 'parseFinished' });
+}
+
+async function parseUvLockDependenciesPayload(): Promise<UvParseResult> {
   const detection = await detectUvProject();
   if (!detection.isUvProject || !detection.projectRoot) {
-    webview.postMessage({
-      command: 'setOutput',
-      text: detection.message
-    });
-    return;
+    return {
+      payload: undefined,
+      message: detection.message
+    };
   }
 
   const lockFileUri = vscode.Uri.joinPath(vscode.Uri.file(detection.projectRoot), 'uv.lock');
   const hasLock = await uriExists(lockFileUri);
   if (!hasLock) {
-    webview.postMessage({
-      command: 'setOutput',
-      text: `No uv.lock file found in ${detection.projectRoot}.`
-    });
-    return;
+    return {
+      payload: undefined,
+      message: `No uv.lock file found in ${detection.projectRoot}.`,
+      projectRoot: detection.projectRoot
+    };
   }
 
   const rawLockContent = await vscode.workspace.fs.readFile(lockFileUri);
@@ -286,10 +311,69 @@ async function parseAndSendUvLockDependencies(webview: vscode.Webview) {
   const parsedPackages = parseUvLockDependencies(lockContent);
   const payload = buildDependenciesPayload(parsedPackages);
 
-  webview.postMessage({
-    command: 'setDependenciesOutput',
-    ...payload
-  });
+  return {
+    payload,
+    message: `Parsed ${payload.packageCount} packages from uv.lock.`,
+    projectRoot: detection.projectRoot
+  };
+}
+
+function getHtmlForDependencyGraphWebview(
+  webview: vscode.Webview,
+  extensionUri: vscode.Uri,
+  payload: UvDependenciesPayload,
+  projectRoot?: string
+): string {
+  const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'dependency-graph.css'));
+  const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'dependency-graph.js'));
+  const graphDataJson = JSON.stringify({ payload, projectRoot }).replace(/</g, '\\u003c');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="${styleUri}" />
+  <title>UV Dependency Graph</title>
+</head>
+<body>
+  <main class="graph-shell">
+    <header class="graph-header">
+      <div>
+        <p class="eyebrow">UV lock graph</p>
+        <h1>Dependency Graph</h1>
+        <p id="graphSubtitle" class="subtitle"></p>
+      </div>
+      <div class="stats" id="stats"></div>
+    </header>
+
+    <section class="controls" aria-label="Graph controls">
+      <label class="control-field">
+        <span>Search package</span>
+        <input id="searchInput" type="search" placeholder="e.g. requests" spellcheck="false" />
+      </label>
+      <label class="control-field control-small">
+        <span>Max edges per node</span>
+        <input id="degreeLimitInput" type="number" min="1" max="200" value="30" />
+      </label>
+      <button id="resetViewButton" type="button" class="btn">Reset view</button>
+      <button id="fitViewButton" type="button" class="btn">Fit graph</button>
+    </section>
+
+    <section class="graph-panel">
+      <canvas id="graphCanvas" aria-label="Dependency graph canvas"></canvas>
+      <aside class="inspector" id="inspector">
+        <h2>Inspector</h2>
+        <p class="hint">Click a node to inspect its direct dependencies and dependents.</p>
+        <div id="inspectorContent" class="inspector-content">No package selected.</div>
+      </aside>
+    </section>
+  </main>
+
+  <script id="graphData" type="application/json">${graphDataJson}</script>
+  <script src="${scriptUri}"></script>
+</body>
+</html>`;
 }
 
 function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): string {
@@ -358,7 +442,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
       </section>
 
       <section class="actions-row">
-        <button id="parseDependenciesButton" class="btn btn-secondary">Parse uv.lock dependencies</button>
+        <button id="parseDependenciesButton" class="btn btn-secondary">Open dependency graph</button>
       </section>
 
       <section class="output-card">
@@ -509,10 +593,58 @@ class UVPanel {
           await runUvCommand(message.text, webview);
           break;
         case 'parseDependencies':
-          await parseAndSendUvLockDependencies(webview);
+          await parseAndSendUvLockDependencies(webview, this.extensionUri);
           break;
       }
     });
+  }
+}
+
+class UVDependencyGraphPanel {
+  public static currentPanel: UVDependencyGraphPanel | undefined;
+  private readonly panel: vscode.WebviewPanel;
+  private readonly extensionUri: vscode.Uri;
+
+  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, payload: UvDependenciesPayload, projectRoot?: string) {
+    this.panel = panel;
+    this.extensionUri = extensionUri;
+    this.update(payload, projectRoot);
+  }
+
+  public static createOrShow(extensionUri: vscode.Uri | undefined, payload: UvDependenciesPayload, projectRoot?: string) {
+    const resolvedExtensionUri = extensionUri ?? vscode.extensions.getExtension('uv-ui-tool.uv-ui-tool')?.extensionUri;
+    if (!resolvedExtensionUri) {
+      return;
+    }
+
+    const column = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.Beside;
+
+    if (UVDependencyGraphPanel.currentPanel) {
+      UVDependencyGraphPanel.currentPanel.panel.reveal(column);
+      UVDependencyGraphPanel.currentPanel.update(payload, projectRoot);
+      return;
+    }
+
+    const panel = vscode.window.createWebviewPanel(
+      'uvDependencyGraph',
+      'UV Dependency Graph',
+      vscode.ViewColumn.Beside,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [vscode.Uri.joinPath(resolvedExtensionUri, 'media')]
+      }
+    );
+
+    UVDependencyGraphPanel.currentPanel = new UVDependencyGraphPanel(panel, resolvedExtensionUri, payload, projectRoot);
+
+    panel.onDidDispose(() => {
+      UVDependencyGraphPanel.currentPanel = undefined;
+    });
+  }
+
+  private update(payload: UvDependenciesPayload, projectRoot?: string) {
+    this.panel.webview.html = getHtmlForDependencyGraphWebview(this.panel.webview, this.extensionUri, payload, projectRoot);
   }
 }
 
@@ -542,7 +674,7 @@ class UVSidebarProvider implements vscode.WebviewViewProvider {
           await runUvCommand(message.text, webview);
           break;
         case 'parseDependencies':
-          await parseAndSendUvLockDependencies(webview);
+          await parseAndSendUvLockDependencies(webview, this.extensionUri);
           break;
       }
     });

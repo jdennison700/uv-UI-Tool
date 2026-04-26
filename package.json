@@ -13,6 +13,7 @@
   "activationEvents": [
     "onCommand:uv-ui-tool.openPanel",
     "onCommand:uv-ui-tool.openSidebar",
+    "onCommand:uv-ui-tool.openDependencyGraph",
     "onView:uvUiToolSidebar"
   ],
   "main": "./out/extension.js",
@@ -25,6 +26,10 @@
       {
         "command": "uv-ui-tool.openSidebar",
         "title": "UV UI Tool: Open Sidebar"
+      },
+      {
+        "command": "uv-ui-tool.openDependencyGraph",
+        "title": "UV UI Tool: Open Dependency Graph"
       },
       {
         "command": "uv-ui-tool.helloWorld",

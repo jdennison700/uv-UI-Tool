@@ -244,6 +244,11 @@ window.addEventListener('message', event => {
 
   if (message.command === 'commandFinished') {
     setBusy(runButton, false, 'Running...');
+    setBusy(parseDependenciesButton, false, 'Parsing...');
+  }
+
+  if (message.command === 'parseFinished') {
+    setBusy(parseDependenciesButton, false, 'Parsing...');
   }
 
   if (message.command === 'setProjectStatus') {
