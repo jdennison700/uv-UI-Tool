@@ -223,12 +223,14 @@ input:disabled {
 
 .command-library {
   margin-top: 0.75rem;
-  display: grid;
-  gap: 0.45rem;
+  border-radius: 12px;
+  border: 1px solid rgba(217, 71, 31, 0.22);
+  background: #fff;
+  overflow: clip;
 }
 
 .command-library-title {
-  margin: 0 0 0.1rem;
+  margin: 0;
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -236,53 +238,76 @@ input:disabled {
   color: #9a3412;
 }
 
-.command-item {
-  border-radius: 12px;
-  border: 1px solid rgba(217, 71, 31, 0.22);
-  background: #fff;
-  overflow: clip;
-}
-
-.command-item-summary {
+.command-library-summary {
   list-style: none;
-  padding: 0.5rem 0.65rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
   cursor: pointer;
 }
 
-.command-item-summary::-webkit-details-marker {
+.command-library-summary::-webkit-details-marker {
   display: none;
 }
 
-.command-item-summary::before {
+.command-library-summary::before {
   content: '▸';
-  margin-right: 0.4rem;
   color: #9a3412;
+  margin-right: 0.35rem;
 }
 
-.command-item[open] .command-item-summary::before {
+.command-library[open] .command-library-summary::before {
   content: '▾';
 }
 
-.command-item-name {
-  font-family: "Consolas", "Cascadia Code", monospace;
-  font-size: 0.87rem;
+.command-library-hint {
+  font-size: 0.78rem;
+  color: #9a3412;
+}
+
+.command-library[open] .command-library-hint {
   color: #7c2d12;
 }
 
-.command-item-content {
-  border-top: 1px solid rgba(217, 71, 31, 0.14);
-  padding: 0.55rem 0.65rem 0.65rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
+.command-library[open] .command-library-hint::before {
+  content: 'Collapse';
 }
 
-.command-item-description {
+.command-library:not([open]) .command-library-hint::before {
+  content: 'Expand';
+}
+
+.command-library-hint {
+  font-size: 0;
+}
+
+.command-library-content {
+  border-top: 1px solid rgba(217, 71, 31, 0.14);
+  padding: 0.6rem 0.65rem 0.7rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.command-group {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.command-group-title {
   margin: 0;
-  color: #7b3f2f;
-  font-size: 0.84rem;
-  line-height: 1.4;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9a3412;
+}
+
+.command-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.38rem;
 }
 
 .chip {
@@ -291,8 +316,9 @@ input:disabled {
   background: #fff;
   color: #7c2d12;
   font: inherit;
-  font-size: 0.84rem;
-  padding: 0.35rem 0.65rem;
+  font-family: "Consolas", "Cascadia Code", monospace;
+  font-size: 0.78rem;
+  padding: 0.28rem 0.58rem;
   cursor: pointer;
 }
 

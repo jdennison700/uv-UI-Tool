@@ -328,49 +328,33 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
           <input id="commandInput" type="text" placeholder="uv --version" spellcheck="false" />
           <button id="runButton" class="btn btn-primary">Run</button>
         </div>
-        <div class="command-library" aria-label="Command menu">
-          <p class="command-library-title">Command menu</p>
+        <details class="command-library" aria-label="Command menu">
+          <summary class="command-library-summary">
+            <span class="command-library-title">Popular uv commands</span>
+            <span class="command-library-hint">Expand</span>
+          </summary>
 
-          <details class="command-item" open>
-            <summary class="command-item-summary">
-              <span class="command-item-name">uv --version</span>
-            </summary>
-            <div class="command-item-content">
-              <p class="command-item-description">Displays the installed uv version so you can confirm your tooling.</p>
-              <button type="button" class="chip command-select-btn" data-command="uv --version">Use command</button>
+          <div class="command-library-content">
+            <div class="command-group">
+              <p class="command-group-title">Project setup</p>
+              <div class="command-chips">
+                <button type="button" class="chip command-select-btn" data-command="uv --version" title="Check installed uv version">uv --version</button>
+                <button type="button" class="chip command-select-btn" data-command="uv sync" title="Sync environment with lockfile">uv sync</button>
+                <button type="button" class="chip command-select-btn" data-command="uv lock" title="Regenerate uv.lock">uv lock</button>
+                <button type="button" class="chip command-select-btn" data-command="uv tree" title="Show dependency tree">uv tree</button>
+              </div>
             </div>
-          </details>
 
-          <details class="command-item">
-            <summary class="command-item-summary">
-              <span class="command-item-name">uv sync</span>
-            </summary>
-            <div class="command-item-content">
-              <p class="command-item-description">Installs and syncs project dependencies to match your lock and project config.</p>
-              <button type="button" class="chip command-select-btn" data-command="uv sync">Use command</button>
+            <div class="command-group">
+              <p class="command-group-title">Run and test</p>
+              <div class="command-chips">
+                <button type="button" class="chip command-select-btn" data-command="uv run python -V" title="Run python from project environment">uv run python -V</button>
+                <button type="button" class="chip command-select-btn" data-command="uv run pytest" title="Run tests with uv-managed env">uv run pytest</button>
+                <button type="button" class="chip command-select-btn" data-command="uv pip list" title="List installed packages">uv pip list</button>
+              </div>
             </div>
-          </details>
-
-          <details class="command-item">
-            <summary class="command-item-summary">
-              <span class="command-item-name">uv lock</span>
-            </summary>
-            <div class="command-item-content">
-              <p class="command-item-description">Regenerates uv.lock with currently resolved versions for reproducible installs.</p>
-              <button type="button" class="chip command-select-btn" data-command="uv lock">Use command</button>
-            </div>
-          </details>
-
-          <details class="command-item">
-            <summary class="command-item-summary">
-              <span class="command-item-name">uv pip list</span>
-            </summary>
-            <div class="command-item-content">
-              <p class="command-item-description">Lists packages in the environment to quickly inspect what is installed.</p>
-              <button type="button" class="chip command-select-btn" data-command="uv pip list">Use command</button>
-            </div>
-          </details>
-        </div>
+          </div>
+        </details>
       </section>
 
       <section class="actions-row">
