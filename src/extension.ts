@@ -374,12 +374,16 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
 </html>`;
 }
 
-function postAppendOutput(webview: vscode.Webview | undefined, text: string) {
+function postAppendOutput(
+  webview: vscode.Webview | undefined,
+  text: string,
+  stream: 'command' | 'stdout' | 'stderr' | 'system' = 'stdout'
+) {
   if (!text) {
     return;
   }
 
-  webview?.postMessage({ command: 'appendOutput', text });
+  webview?.postMessage({ command: 'appendOutput', text, stream });
 }
 
 async function runUvCommand(commandText: string, webview?: vscode.Webview) {
@@ -410,7 +414,7 @@ async function runUvCommand(commandText: string, webview?: vscode.Webview) {
     : ['-lc', commandText];
 
   webview?.postMessage({ command: 'clearOutput' });
-  postAppendOutput(webview, `$ ${commandText}\n\n`);
+  postAppendOutput(webview, `$ ${commandText}\n\n`, 'command');
 
   await new Promise<void>(resolve => {
     const commandProcess = spawn(shell, shellArgs, {
@@ -428,23 +432,23 @@ async function runUvCommand(commandText: string, webview?: vscode.Webview) {
     };
 
     commandProcess.stdout.on('data', (chunk: Buffer | string) => {
-      postAppendOutput(webview, chunk.toString());
+      postAppendOutput(webview, chunk.toString(), 'stdout');
     });
 
     commandProcess.stderr.on('data', (chunk: Buffer | string) => {
-      postAppendOutput(webview, chunk.toString());
+      postAppendOutput(webview, chunk.toString(), 'stderr');
     });
 
     commandProcess.on('error', error => {
-      postAppendOutput(webview, `Failed to run command: ${error.message}\n`);
+      postAppendOutput(webview, `Failed to run command: ${error.message}\n`, 'stderr');
       finalize();
     });
 
     commandProcess.on('close', (code, signal) => {
       if (signal) {
-        postAppendOutput(webview, `\nCommand terminated by signal: ${signal}\n`);
+        postAppendOutput(webview, `\nCommand terminated by signal: ${signal}\n`, 'system');
       } else if (typeof code === 'number' && code !== 0) {
-        postAppendOutput(webview, `\nCommand exited with code: ${code}\n`);
+        postAppendOutput(webview, `\nCommand exited with code: ${code}\n`, 'system');
       }
 
       finalize();

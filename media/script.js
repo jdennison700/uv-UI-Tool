@@ -6,25 +6,37 @@ const output = document.getElementById('output');
 const projectStatus = document.getElementById('projectStatus');
 const commandSelectButtons = document.querySelectorAll('.command-select-btn[data-command]');
 
-const setPlainOutput = text => {
-  if (!output) {
+const appendTerminalChunk = (text, stream = 'stdout') => {
+  if (!output || !text) {
     return;
   }
 
-  output.classList.remove('output-dependencies');
-  output.classList.add('output-plain');
-  output.textContent = text;
+  const chunk = document.createElement('span');
+  chunk.className = `terminal-chunk terminal-${stream}`;
+  chunk.textContent = text;
+  output.append(chunk);
+  output.scrollTop = output.scrollHeight;
 };
 
-const appendPlainOutput = text => {
+const setPlainOutput = (text, stream = 'system') => {
   if (!output) {
     return;
   }
 
   output.classList.remove('output-dependencies');
-  output.classList.add('output-plain');
-  output.textContent += text;
-  output.scrollTop = output.scrollHeight;
+  output.classList.add('output-plain', 'output-terminal');
+  output.innerHTML = '';
+  appendTerminalChunk(text, stream);
+};
+
+const appendPlainOutput = (text, stream = 'stdout') => {
+  if (!output) {
+    return;
+  }
+
+  output.classList.remove('output-dependencies');
+  output.classList.add('output-plain', 'output-terminal');
+  appendTerminalChunk(text, stream);
 };
 
 const createSummaryStat = (label, value) => {
@@ -56,6 +68,7 @@ const setDependenciesOutput = message => {
   const packages = Array.isArray(message.packages) ? message.packages : [];
 
   output.classList.remove('output-plain');
+  output.classList.remove('output-terminal');
   output.classList.add('output-dependencies');
   output.innerHTML = '';
 
@@ -210,7 +223,7 @@ window.addEventListener('message', event => {
   const message = event.data;
 
   if (message.command === 'setOutput') {
-    setPlainOutput(message.text);
+    setPlainOutput(message.text, 'system');
     setBusy(runButton, false, 'Running...');
     setBusy(parseDependenciesButton, false, 'Parsing...');
   }
@@ -222,11 +235,11 @@ window.addEventListener('message', event => {
   }
 
   if (message.command === 'clearOutput') {
-    setPlainOutput('');
+    setPlainOutput('', 'system');
   }
 
   if (message.command === 'appendOutput') {
-    appendPlainOutput(message.text ?? '');
+    appendPlainOutput(message.text ?? '', message.stream ?? 'stdout');
   }
 
   if (message.command === 'commandFinished') {

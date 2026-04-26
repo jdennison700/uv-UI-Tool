@@ -362,6 +362,38 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.output-terminal {
+  border: 1px solid #1f2937;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 22%),
+    #0b1220;
+  color: #d1d5db;
+  font-family: "Cascadia Mono", "Consolas", "Courier New", monospace;
+  font-size: 0.84rem;
+  line-height: 1.42;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
+}
+
+.terminal-chunk {
+  display: block;
+}
+
+.terminal-command {
+  color: #93c5fd;
+}
+
+.terminal-stdout {
+  color: #d1d5db;
+}
+
+.terminal-stderr {
+  color: #fca5a5;
+}
+
+.terminal-system {
+  color: #fcd34d;
+}
+
 .output-dependencies {
   white-space: normal;
 }
