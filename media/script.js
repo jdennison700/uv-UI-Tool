@@ -5,6 +5,17 @@ const commandInput = document.getElementById('commandInput');
 const output = document.getElementById('output');
 const projectStatus = document.getElementById('projectStatus');
 const commandSelectButtons = document.querySelectorAll('.command-select-btn[data-command]');
+const openSettingsButton = document.getElementById('openSettingsButton');
+const settingsMenu = document.getElementById('settingsMenu');
+const themeSelect = document.getElementById('themeSelect');
+
+const applyTheme = theme => {
+  const resolvedTheme = theme === 'matte-black' ? 'matte-black' : 'sunset';
+  document.body?.setAttribute('data-theme', resolvedTheme);
+  if (themeSelect && themeSelect.value !== resolvedTheme) {
+    themeSelect.value = resolvedTheme;
+  }
+};
 
 const appendTerminalChunk = (text, stream = 'stdout') => {
   if (!output || !text) {
@@ -219,6 +230,36 @@ commandSelectButtons.forEach(button => {
   });
 });
 
+openSettingsButton?.addEventListener('click', event => {
+  event.stopPropagation();
+  if (!settingsMenu) {
+    return;
+  }
+
+  settingsMenu.hidden = !settingsMenu.hidden;
+});
+
+document.addEventListener('click', event => {
+  if (!settingsMenu || settingsMenu.hidden) {
+    return;
+  }
+
+  if (settingsMenu.contains(event.target) || openSettingsButton?.contains(event.target)) {
+    return;
+  }
+
+  settingsMenu.hidden = true;
+});
+
+themeSelect?.addEventListener('change', () => {
+  const selectedTheme = themeSelect.value === 'matte-black' ? 'matte-black' : 'sunset';
+  applyTheme(selectedTheme);
+  vscode.postMessage({
+    command: 'setTheme',
+    theme: selectedTheme
+  });
+});
+
 window.addEventListener('message', event => {
   const message = event.data;
 
@@ -271,5 +312,9 @@ window.addEventListener('message', event => {
     commandSelectButtons.forEach(button => {
       button.disabled = !enabled;
     });
+  }
+
+  if (message.command === 'setTheme') {
+    applyTheme(message.theme);
   }
 });

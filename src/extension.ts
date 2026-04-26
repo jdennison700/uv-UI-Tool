@@ -4,7 +4,33 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import * as vscode from 'vscode';
 
+type ThemeName = 'sunset' | 'matte-black';
+const THEME_KEY = 'uv-ui-tool.theme';
+let extensionContextRef: vscode.ExtensionContext | undefined;
+let sidebarProviderRef: UVSidebarProvider | undefined;
+
+function normalizeThemeName(value: unknown): ThemeName {
+  return value === 'matte-black' ? 'matte-black' : 'sunset';
+}
+
+function getCurrentTheme(): ThemeName {
+  return normalizeThemeName(extensionContextRef?.globalState.get<string>(THEME_KEY));
+}
+
+async function setCurrentTheme(theme: ThemeName) {
+  const normalizedTheme = normalizeThemeName(theme);
+  await extensionContextRef?.globalState.update(THEME_KEY, normalizedTheme);
+  UVPanel.currentPanel?.applyTheme(normalizedTheme);
+  sidebarProviderRef?.applyTheme(normalizedTheme);
+  UVDependencyGraphPanel.currentPanel?.applyTheme(normalizedTheme);
+}
+
+function sendTheme(webview: vscode.Webview) {
+  webview.postMessage({ command: 'setTheme', theme: getCurrentTheme() });
+}
+
 export function activate(context: vscode.ExtensionContext) {
+  extensionContextRef = context;
   console.log('UV UI Tool activated');
   const openPanelCommand = 'uv-ui-tool.openPanel';
   const openSidebarCommand = 'uv-ui-tool.openSidebar';
@@ -31,7 +57,7 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      UVDependencyGraphPanel.createOrShow(context.extensionUri, parseResult.payload, parseResult.projectRoot);
+      UVDependencyGraphPanel.createOrShow(context.extensionUri, parseResult.payload, getCurrentTheme(), parseResult.projectRoot);
     })
   );
 
@@ -42,6 +68,7 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   const provider = new UVSidebarProvider(context.extensionUri);
+  sidebarProviderRef = provider;
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
       'uvUiToolSidebar',
@@ -283,7 +310,7 @@ async function parseAndSendUvLockDependencies(webview: vscode.Webview, extension
     return;
   }
 
-  UVDependencyGraphPanel.createOrShow(extensionUri, parseResult.payload, parseResult.projectRoot);
+  UVDependencyGraphPanel.createOrShow(extensionUri, parseResult.payload, getCurrentTheme(), parseResult.projectRoot);
   webview.postMessage({ command: 'parseFinished' });
 }
 
@@ -322,11 +349,12 @@ function getHtmlForDependencyGraphWebview(
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
   payload: UvDependenciesPayload,
+  theme: ThemeName,
   projectRoot?: string
 ): string {
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'dependency-graph.css'));
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'dependency-graph.js'));
-  const graphDataJson = JSON.stringify({ payload, projectRoot }).replace(/</g, '\\u003c');
+  const graphDataJson = JSON.stringify({ payload, projectRoot, theme }).replace(/</g, '\\u003c');
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -336,7 +364,7 @@ function getHtmlForDependencyGraphWebview(
   <link rel="stylesheet" href="${styleUri}" />
   <title>UV Dependency Graph</title>
 </head>
-<body>
+<body data-theme="${theme}">
   <main class="graph-shell">
     <header class="graph-header">
       <div>
@@ -379,6 +407,7 @@ function getHtmlForDependencyGraphWebview(
 function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'style.css'));
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'script.js'));
+  const theme = getCurrentTheme();
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -388,14 +417,24 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
   <link rel="stylesheet" href="${styleUri}" />
   <title>UV UI Tool</title>
 </head>
-<body>
+<body data-theme="${theme}">
   <div class="app-shell">
     <div class="background-glow background-glow-top"></div>
     <div class="background-glow background-glow-bottom"></div>
 
     <main class="container">
       <header class="hero">
-        <h1>UV UI Tool</h1>
+        <div class="hero-headline">
+          <h1>UV UI Tool</h1>
+          <button id="openSettingsButton" class="icon-btn" type="button" title="Open settings" aria-label="Open settings">⚙</button>
+        </div>
+        <div id="settingsMenu" class="settings-menu" hidden>
+          <label for="themeSelect" class="settings-label">Theme</label>
+          <select id="themeSelect" class="settings-select">
+            <option value="sunset">Sunset</option>
+            <option value="matte-black">Matte Black</option>
+          </select>
+        </div>
       </header>
 
       <section class="status-card">
@@ -583,7 +622,12 @@ class UVPanel {
 
   private update() {
     this.panel.webview.html = getHtmlForWebview(this.panel.webview, this.extensionUri);
+    sendTheme(this.panel.webview);
     sendProjectStatus(this.panel.webview);
+  }
+
+  public applyTheme(theme: ThemeName) {
+    this.panel.webview.postMessage({ command: 'setTheme', theme });
   }
 
   private setWebviewMessageListener(webview: vscode.Webview) {
@@ -595,6 +639,9 @@ class UVPanel {
         case 'parseDependencies':
           await parseAndSendUvLockDependencies(webview, this.extensionUri);
           break;
+        case 'setTheme':
+          await setCurrentTheme(normalizeThemeName(message.theme));
+          break;
       }
     });
   }
@@ -605,13 +652,13 @@ class UVDependencyGraphPanel {
   private readonly panel: vscode.WebviewPanel;
   private readonly extensionUri: vscode.Uri;
 
-  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, payload: UvDependenciesPayload, projectRoot?: string) {
+  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, payload: UvDependenciesPayload, theme: ThemeName, projectRoot?: string) {
     this.panel = panel;
     this.extensionUri = extensionUri;
-    this.update(payload, projectRoot);
+    this.update(payload, theme, projectRoot);
   }
 
-  public static createOrShow(extensionUri: vscode.Uri | undefined, payload: UvDependenciesPayload, projectRoot?: string) {
+  public static createOrShow(extensionUri: vscode.Uri | undefined, payload: UvDependenciesPayload, theme: ThemeName, projectRoot?: string) {
     const resolvedExtensionUri = extensionUri ?? vscode.extensions.getExtension('uv-ui-tool.uv-ui-tool')?.extensionUri;
     if (!resolvedExtensionUri) {
       return;
@@ -621,7 +668,7 @@ class UVDependencyGraphPanel {
 
     if (UVDependencyGraphPanel.currentPanel) {
       UVDependencyGraphPanel.currentPanel.panel.reveal(column);
-      UVDependencyGraphPanel.currentPanel.update(payload, projectRoot);
+      UVDependencyGraphPanel.currentPanel.update(payload, theme, projectRoot);
       return;
     }
 
@@ -636,19 +683,25 @@ class UVDependencyGraphPanel {
       }
     );
 
-    UVDependencyGraphPanel.currentPanel = new UVDependencyGraphPanel(panel, resolvedExtensionUri, payload, projectRoot);
+    UVDependencyGraphPanel.currentPanel = new UVDependencyGraphPanel(panel, resolvedExtensionUri, payload, theme, projectRoot);
 
     panel.onDidDispose(() => {
       UVDependencyGraphPanel.currentPanel = undefined;
     });
   }
 
-  private update(payload: UvDependenciesPayload, projectRoot?: string) {
-    this.panel.webview.html = getHtmlForDependencyGraphWebview(this.panel.webview, this.extensionUri, payload, projectRoot);
+  private update(payload: UvDependenciesPayload, theme: ThemeName, projectRoot?: string) {
+    this.panel.webview.html = getHtmlForDependencyGraphWebview(this.panel.webview, this.extensionUri, payload, theme, projectRoot);
+  }
+
+  public applyTheme(theme: ThemeName) {
+    this.panel.webview.postMessage({ command: 'setTheme', theme });
   }
 }
 
 class UVSidebarProvider implements vscode.WebviewViewProvider {
+  private currentWebview: vscode.Webview | undefined;
+
   constructor(private readonly extensionUri: vscode.Uri) {}
 
   public resolveWebviewView(
@@ -662,9 +715,16 @@ class UVSidebarProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')]
     };
 
+    this.currentWebview = webviewView.webview;
+
     webviewView.webview.html = getHtmlForWebview(webviewView.webview, this.extensionUri);
     this.setWebviewMessageListener(webviewView.webview);
+    sendTheme(webviewView.webview);
     sendProjectStatus(webviewView.webview);
+  }
+
+  public applyTheme(theme: ThemeName) {
+    this.currentWebview?.postMessage({ command: 'setTheme', theme });
   }
 
   private setWebviewMessageListener(webview: vscode.Webview) {
@@ -675,6 +735,9 @@ class UVSidebarProvider implements vscode.WebviewViewProvider {
           break;
         case 'parseDependencies':
           await parseAndSendUvLockDependencies(webview, this.extensionUri);
+          break;
+        case 'setTheme':
+          await setCurrentTheme(normalizeThemeName(message.theme));
           break;
       }
     });

@@ -28,15 +28,35 @@ const state = {
   searchTerm: ''
 };
 
-const cssValue = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-const palette = {
-  edge: cssValue('--edge') || 'rgba(217, 71, 31, 0.18)',
-  edgeStrong: cssValue('--edge-strong') || 'rgba(217, 71, 31, 0.68)',
-  nodePrimary: cssValue('--node-primary') || '#f06a3e',
-  nodeSecondary: cssValue('--node-secondary') || '#f59e0b',
-  nodeRelated: cssValue('--node-related') || '#d9471f',
-  nodeSelected: cssValue('--node-selected') || '#b45309',
-  label: cssValue('--text') || '#1e293b'
+let palette = {
+  edge: 'rgba(217, 71, 31, 0.18)',
+  edgeStrong: 'rgba(217, 71, 31, 0.68)',
+  nodePrimary: '#f06a3e',
+  nodeSecondary: '#f59e0b',
+  nodeRelated: '#d9471f',
+  nodeSelected: '#b45309',
+  label: '#1e293b'
+};
+
+const refreshPalette = () => {
+  const source = document.body || document.documentElement;
+  const cssValue = name => getComputedStyle(source).getPropertyValue(name).trim();
+  palette = {
+    edge: cssValue('--edge') || 'rgba(217, 71, 31, 0.18)',
+    edgeStrong: cssValue('--edge-strong') || 'rgba(217, 71, 31, 0.68)',
+    nodePrimary: cssValue('--node-primary') || '#f06a3e',
+    nodeSecondary: cssValue('--node-secondary') || '#f59e0b',
+    nodeRelated: cssValue('--node-related') || '#d9471f',
+    nodeSelected: cssValue('--node-selected') || '#b45309',
+    label: cssValue('--text') || '#1e293b'
+  };
+};
+
+const applyTheme = theme => {
+  const resolvedTheme = theme === 'matte-black' ? 'matte-black' : 'sunset';
+  document.body?.setAttribute('data-theme', resolvedTheme);
+  refreshPalette();
+  draw();
 };
 
 const readData = () => {
@@ -613,7 +633,8 @@ const wireEvents = () => {
 };
 
 const init = () => {
-  const { payload, projectRoot } = readData();
+  const { payload, projectRoot, theme } = readData();
+  applyTheme(theme);
 
   subtitleEl.textContent = projectRoot
     ? `Source: ${projectRoot}`
@@ -630,5 +651,12 @@ const init = () => {
   draw();
   wireEvents();
 };
+
+window.addEventListener('message', event => {
+  const message = event.data;
+  if (message.command === 'setTheme') {
+    applyTheme(message.theme);
+  }
+});
 
 init();

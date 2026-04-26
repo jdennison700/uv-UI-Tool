@@ -251,3 +251,32 @@ h2 {
     min-height: 11rem;
   }
 }
+
+body[data-theme='matte-black'] {
+  --bg: #101010;
+  --bg-2: #0d0d0d;
+  --surface: rgba(24, 24, 24, 0.9);
+  --surface-2: #181818;
+  --text: #ececec;
+  --muted: #b6b6b6;
+  --brand: #f59f73;
+  --brand-2: #ff8b5d;
+  --warn: #f3b18d;
+  --border: rgba(255, 139, 93, 0.24);
+  --edge: rgba(255, 139, 93, 0.2);
+  --edge-strong: rgba(255, 139, 93, 0.72);
+  --node-primary: #ff8b5d;
+  --node-secondary: #f59f73;
+  --node-related: #e9713f;
+  --node-selected: #ffd29f;
+  --canvas-base: #0f0f0f;
+  background:
+    radial-gradient(1000px 500px at -10% -15%, rgba(255, 139, 93, 0.18) 0%, transparent 52%),
+    radial-gradient(850px 450px at 110% 0%, rgba(245, 159, 115, 0.12) 0%, transparent 46%),
+    linear-gradient(165deg, #111, #0d0d0d);
+}
+
+body[data-theme='matte-black'] .btn {
+  color: #ececec;
+  background: #161616;
+}
