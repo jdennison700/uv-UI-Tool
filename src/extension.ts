@@ -93,7 +93,7 @@ type UvDependenciesPayload = {
 type UvParseResult = { payload?: UvDependenciesPayload; message: string; projectRoot?: string };
 type DependencyTarget = 'regular' | 'dev';
 type PackageAddRequest = {
-  packageName: string;
+  packageNames: string[];
   dependencyTarget: DependencyTarget;
   versionSpecifier?: string;
 };
@@ -496,8 +496,8 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
       </section>
 
       <section class="package-card">
-        <label for="packageSearchInput" class="input-label">Add package from PyPI</label>
-        <input id="packageSearchInput" type="search" placeholder="Search package name..." spellcheck="false" />
+        <label for="packageSearchInput" class="input-label">Add packages from PyPI</label>
+        <input id="packageSearchInput" type="search" placeholder="Search package names..." spellcheck="false" />
         <p id="packageSearchStatus" class="package-search-status">Type to search PyPI packages.</p>
         <div id="packageResults" class="package-results" aria-live="polite"></div>
 
@@ -601,7 +601,7 @@ function buildUvAddArgs(request: PackageAddRequest): string[] {
     args.push('--dev');
   }
 
-  args.push(toPackageSpecifier(request.packageName, request.versionSpecifier));
+  args.push(...request.packageNames.map(name => toPackageSpecifier(name, request.versionSpecifier)));
   return args;
 }
 
@@ -678,41 +678,63 @@ async function loadPyPiPackageIndex(): Promise<PyPiPackageIndex> {
 }
 
 function searchPyPiPackageIndex(names: string[], query: string): PyPiSearchResult[] {
-  const prefixMatches: string[] = [];
-  const substringMatches: string[] = [];
-
-  for (const packageName of names) {
-    if (packageName.startsWith(query)) {
-      prefixMatches.push(packageName);
-      if (prefixMatches.length >= 20) {
-        break;
+  const resultLimit = 20;
+  const matches = names.filter(packageName => packageName.includes(query));
+  matches.sort((left, right) => {
+    const score = (name: string) => {
+      if (name === query) {
+        return 0;
       }
-    } else if (packageName.includes(query)) {
-      substringMatches.push(packageName);
+      if (name.startsWith(query)) {
+        return 1;
+      }
+      if (name.includes(`-${query}`) || name.includes(`_${query}`) || name.includes(`.${query}`)) {
+        return 2;
+      }
+      return 3;
+    };
+
+    const scoreDiff = score(left) - score(right);
+    if (scoreDiff !== 0) {
+      return scoreDiff;
     }
 
-    if ((prefixMatches.length + substringMatches.length) >= 20) {
-      break;
+    const lengthDiff = Math.abs(left.length - query.length) - Math.abs(right.length - query.length);
+    if (lengthDiff !== 0) {
+      return lengthDiff;
     }
-  }
 
-  const merged = [...prefixMatches, ...substringMatches].slice(0, 20);
-  return merged.map(name => ({ name }));
+    return left.localeCompare(right);
+  });
+
+  return matches.slice(0, resultLimit).map(name => ({ name }));
 }
 
 function normalizePackageAddRequest(message: unknown): { request?: PackageAddRequest; error?: string } {
   const payload = (message && typeof message === 'object') ? message as Record<string, unknown> : undefined;
-  const packageName = typeof payload?.packageName === 'string' ? payload.packageName.trim() : '';
-  if (!packageName) {
-    return { error: 'Please select a package before continuing.' };
+  const namesFromArray = Array.isArray(payload?.packageNames)
+    ? payload.packageNames
+      .filter((value): value is string => typeof value === 'string')
+      .map(value => value.trim())
+      .filter(Boolean)
+    : [];
+  const singlePackageName = typeof payload?.packageName === 'string' ? payload.packageName.trim() : '';
+  const packageNames = Array.from(new Set([
+    ...namesFromArray,
+    ...(singlePackageName ? [singlePackageName] : [])
+  ]));
+
+  if (packageNames.length === 0) {
+    return { error: 'Please select one or more packages before continuing.' };
   }
 
-  if (!isValidPackageName(packageName)) {
-    return { error: `Invalid package name: ${packageName}` };
+  const invalidPackageName = packageNames.find(name => !isValidPackageName(name));
+  if (invalidPackageName) {
+    return { error: `Invalid package name: ${invalidPackageName}` };
   }
 
   const request: PackageAddRequest = {
-    packageName,
+    packageNames,
     dependencyTarget: normalizeDependencyTarget(payload?.dependencyTarget),
     versionSpecifier: normalizeVersionSpecifier(payload?.versionSpecifier)
   };

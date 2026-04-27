@@ -20,7 +20,7 @@ const addPackagePreview = document.getElementById('addPackagePreview');
 
 let searchDebounceHandle;
 let latestSearchRequestId = 0;
-let selectedPackageName = '';
+const selectedPackageNames = new Set();
 let isUvProject = false;
 let pendingAddPayload;
 
@@ -222,6 +222,8 @@ const clearPackageConfirmation = () => {
   }
 };
 
+const getSelectedPackageNames = () => Array.from(selectedPackageNames);
+
 const getVersionSpecifier = () => {
   const isCustom = versionModeSelect?.value === 'custom';
   if (!isCustom) {
@@ -248,7 +250,7 @@ const renderPackageResults = results => {
     row.className = 'package-result';
     row.dataset.packageName = result.name;
 
-    if (result.name === selectedPackageName) {
+    if (selectedPackageNames.has(result.name)) {
       row.classList.add('selected');
     }
 
@@ -262,14 +264,18 @@ const renderPackageResults = results => {
 
     row.append(title, summary);
     row.addEventListener('click', () => {
-      selectedPackageName = result.name;
-      if (packageSearchInput) {
-        packageSearchInput.value = result.name;
+      if (selectedPackageNames.has(result.name)) {
+        selectedPackageNames.delete(result.name);
+      } else {
+        selectedPackageNames.add(result.name);
       }
       clearPackageConfirmation();
       renderPackageResults(results);
       if (packageSearchStatus) {
-        packageSearchStatus.textContent = `Selected package: ${result.name}`;
+        const selectedCount = selectedPackageNames.size;
+        packageSearchStatus.textContent = selectedCount > 0
+          ? `${selectedCount} package${selectedCount === 1 ? '' : 's'} selected.`
+          : 'Selection cleared. Keep searching to select packages.';
       }
     });
 
@@ -290,7 +296,6 @@ const runCommand = () => {
 const queuePackageSearch = () => {
   clearTimeout(searchDebounceHandle);
   clearPackageConfirmation();
-  selectedPackageName = '';
   const query = packageSearchInput?.value?.trim() ?? '';
 
   if (!query) {
@@ -316,13 +321,14 @@ const queuePackageSearch = () => {
 };
 
 const prepareAddPackage = () => {
-  const packageName = selectedPackageName || packageSearchInput?.value?.trim();
+  const packageNames = getSelectedPackageNames();
+  const fallbackPackageName = packageSearchInput?.value?.trim();
   const dependencyTarget = dependencyTargetSelect?.value === 'dev' ? 'dev' : 'regular';
   const versionSpecifier = getVersionSpecifier();
 
-  if (!packageName) {
+  if (packageNames.length === 0 && !fallbackPackageName) {
     if (packageSearchStatus) {
-      packageSearchStatus.textContent = 'Select a package before preparing the command.';
+      packageSearchStatus.textContent = 'Select one or more packages before preparing the command.';
     }
     return;
   }
@@ -337,7 +343,8 @@ const prepareAddPackage = () => {
   setBusy(prepareAddPackageButton, true, 'Preparing...');
   vscode.postMessage({
     command: 'prepareAddPackageCommand',
-    packageName,
+    packageNames,
+    packageName: fallbackPackageName,
     dependencyTarget,
     versionSpecifier
   });
@@ -495,10 +502,17 @@ window.addEventListener('message', event => {
 
     renderPackageResults(message.results);
     const resultsCount = Array.isArray(message.results) ? message.results.length : 0;
+    const selectedCount = selectedPackageNames.size;
     if (packageSearchStatus) {
-      packageSearchStatus.textContent = resultsCount > 0
-        ? `Found ${resultsCount} package${resultsCount === 1 ? '' : 's'}. Select one to continue.`
-        : 'No packages found for this query.';
+      if (resultsCount === 0) {
+        packageSearchStatus.textContent = selectedCount > 0
+          ? `No matches. ${selectedCount} package${selectedCount === 1 ? '' : 's'} selected.`
+          : 'No packages found for this query.';
+      } else {
+        packageSearchStatus.textContent = selectedCount > 0
+          ? `Found ${resultsCount} packages. ${selectedCount} selected.`
+          : `Found ${resultsCount} package${resultsCount === 1 ? '' : 's'}. Select packages to continue.`;
+      }
     }
   }
 
@@ -534,7 +548,7 @@ window.addEventListener('message', event => {
 
     clearPackageConfirmation();
     if (packageSearchStatus) {
-      packageSearchStatus.textContent = 'Package added successfully.';
+      packageSearchStatus.textContent = 'Packages added successfully.';
     }
   }
 
@@ -583,6 +597,7 @@ window.addEventListener('message', event => {
     }
 
     if (!isUvProject) {
+      selectedPackageNames.clear();
       renderPackageResults([]);
       clearPackageConfirmation();
       if (packageSearchStatus) {
