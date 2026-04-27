@@ -161,6 +161,7 @@ h1 {
 
 .status-card,
 .command-card,
+.package-card,
 .output-card {
   margin-top: 1rem;
   padding: 1rem;
@@ -386,6 +387,92 @@ input:disabled {
   margin-top: 0.95rem;
 }
 
+.package-card {
+  display: grid;
+  gap: 0.62rem;
+}
+
+.package-search-status {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #9a3412;
+}
+
+.package-results {
+  display: grid;
+  gap: 0.4rem;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.package-result {
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+  border: 1px solid rgba(217, 71, 31, 0.23);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text-0);
+  padding: 0.5rem 0.62rem;
+  cursor: pointer;
+}
+
+.package-result:hover {
+  background: #fff5ee;
+}
+
+.package-result.selected {
+  border-color: rgba(217, 71, 31, 0.5);
+  box-shadow: 0 0 0 3px rgba(240, 106, 62, 0.18);
+}
+
+.package-result-name {
+  font-weight: 600;
+  color: #7c2d12;
+}
+
+.package-result-summary {
+  font-size: 0.82rem;
+  color: var(--text-1);
+}
+
+.package-options {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.package-option {
+  display: grid;
+  gap: 0.28rem;
+  font-size: 0.78rem;
+  color: #9a3412;
+}
+
+.package-option input,
+.package-option .settings-select {
+  width: 100%;
+}
+
+.package-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.package-preview {
+  margin: 0;
+  padding: 0.65rem 0.72rem;
+  border-radius: 10px;
+  border: 1px dashed rgba(217, 71, 31, 0.32);
+  background: #fffbf7;
+  color: #431407;
+  font-family: "Cascadia Mono", "Consolas", "Courier New", monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .output-header {
   display: flex;
   align-items: baseline;
@@ -609,8 +696,10 @@ body[data-theme='matte-black'] .settings-menu,
 body[data-theme='matte-black'] .status,
 body[data-theme='matte-black'] .command-library,
 body[data-theme='matte-black'] .chip,
+body[data-theme='matte-black'] .package-result,
 body[data-theme='matte-black'] .btn-secondary,
 body[data-theme='matte-black'] .output,
+body[data-theme='matte-black'] .package-preview,
 body[data-theme='matte-black'] input,
 body[data-theme='matte-black'] .settings-select {
   background: #141414;
@@ -623,10 +712,16 @@ body[data-theme='matte-black'] .input-label,
 body[data-theme='matte-black'] .command-library-title,
 body[data-theme='matte-black'] .command-group-title,
 body[data-theme='matte-black'] .settings-label,
+body[data-theme='matte-black'] .package-search-status,
+body[data-theme='matte-black'] .package-option,
 body[data-theme='matte-black'] .deps-stat-label,
 body[data-theme='matte-black'] .deps-item-badge,
 body[data-theme='matte-black'] .deps-empty {
   color: #f3b18d;
+}
+
+body[data-theme='matte-black'] .package-result-name {
+  color: #ffd3ba;
 }
 
 body[data-theme='matte-black'] .status-meta .status-dot {
@@ -698,6 +793,10 @@ body[data-theme='matte-black'] .terminal-system {
   .deps-summary {
     grid-template-columns: 1fr;
   }
+
+  .package-options {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 420px) {
@@ -732,6 +831,7 @@ body[data-theme='matte-black'] .terminal-system {
 
   .status-card,
   .command-card,
+  .package-card,
   .output-card {
     margin-top: 0.7rem;
     padding: 0.7rem;

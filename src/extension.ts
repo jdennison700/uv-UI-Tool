@@ -91,6 +91,17 @@ type UvDependenciesPayload = {
   packages: UvLockedPackage[];
 };
 type UvParseResult = { payload?: UvDependenciesPayload; message: string; projectRoot?: string };
+type DependencyTarget = 'regular' | 'dev';
+type PackageAddRequest = {
+  packageName: string;
+  dependencyTarget: DependencyTarget;
+  versionSpecifier?: string;
+};
+type PyPiSearchResult = { name: string; version?: string; summary?: string };
+type PyPiPackageIndex = { names: string[]; loadedAt: number };
+const PYPI_INDEX_CACHE_TTL_MS = 1000 * 60 * 30;
+let cachedPyPiPackageIndex: PyPiPackageIndex | undefined;
+let pyPiIndexLoadPromise: Promise<PyPiPackageIndex> | undefined;
 
 async function uriExists(uri: vscode.Uri): Promise<boolean> {
   try {
@@ -484,6 +495,40 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
         <button id="parseDependenciesButton" class="btn btn-secondary">Open dependency graph</button>
       </section>
 
+      <section class="package-card">
+        <label for="packageSearchInput" class="input-label">Add package from PyPI</label>
+        <input id="packageSearchInput" type="search" placeholder="Search package name..." spellcheck="false" />
+        <p id="packageSearchStatus" class="package-search-status">Type to search PyPI packages.</p>
+        <div id="packageResults" class="package-results" aria-live="polite"></div>
+
+        <div class="package-options">
+          <label class="package-option">
+            <span>Dependency target</span>
+            <select id="dependencyTargetSelect" class="settings-select">
+              <option value="regular">Regular dependency</option>
+              <option value="dev">Dev dependency (--dev)</option>
+            </select>
+          </label>
+          <label class="package-option">
+            <span>Version mode</span>
+            <select id="versionModeSelect" class="settings-select">
+              <option value="latest">Latest</option>
+              <option value="custom">Custom specifier</option>
+            </select>
+          </label>
+          <label class="package-option">
+            <span>Version specifier</span>
+            <input id="versionSpecifierInput" type="text" placeholder="==2.32.3 or >=2.30" spellcheck="false" disabled />
+          </label>
+        </div>
+
+        <div class="package-actions">
+          <button id="prepareAddPackageButton" class="btn btn-secondary">Prepare add command</button>
+          <button id="confirmAddPackageButton" class="btn btn-primary" hidden>Confirm and run</button>
+        </div>
+        <pre id="addPackagePreview" class="package-preview" hidden></pre>
+      </section>
+
       <section class="output-card">
         <div class="output-header">
           <h2>Output</h2>
@@ -507,6 +552,283 @@ function postAppendOutput(
   }
 
   webview?.postMessage({ command: 'appendOutput', text, stream });
+}
+
+function escapeShellArgForDisplay(value: string): string {
+  if (!value) {
+    return '""';
+  }
+
+  if (!/[\s"]/u.test(value)) {
+    return value;
+  }
+
+  return `"${value.replace(/"/g, '\\"')}"`;
+}
+
+function normalizeDependencyTarget(value: unknown): DependencyTarget {
+  return value === 'dev' ? 'dev' : 'regular';
+}
+
+function normalizeVersionSpecifier(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (/^(==|!=|>=|<=|~=|>|<)/u.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `==${trimmed}`;
+}
+
+function isValidPackageName(name: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(name);
+}
+
+function toPackageSpecifier(packageName: string, versionSpecifier?: string): string {
+  return `${packageName}${versionSpecifier ?? ''}`;
+}
+
+function buildUvAddArgs(request: PackageAddRequest): string[] {
+  const args = ['add'];
+  if (request.dependencyTarget === 'dev') {
+    args.push('--dev');
+  }
+
+  args.push(toPackageSpecifier(request.packageName, request.versionSpecifier));
+  return args;
+}
+
+function buildUvAddCommandPreview(request: PackageAddRequest): string {
+  return ['uv', ...buildUvAddArgs(request)].map(escapeShellArgForDisplay).join(' ');
+}
+
+function decodeHtmlEntities(raw: string): string {
+  return raw
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, '\'')
+    .replace(/&apos;/g, '\'')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#(\d+);/g, (_, digits) => String.fromCharCode(Number(digits)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+function parsePyPiSimpleIndexNames(html: string): string[] {
+  const names: string[] = [];
+  const anchorRegex = /<a\b[^>]*>([^<]+)<\/a>/gu;
+  let match: RegExpExecArray | null;
+  while ((match = anchorRegex.exec(html)) !== null) {
+    const decoded = decodeHtmlEntities(match[1].trim()).toLowerCase();
+    if (decoded && isValidPackageName(decoded)) {
+      names.push(decoded);
+    }
+  }
+
+  return Array.from(new Set(names));
+}
+
+async function loadPyPiPackageIndex(): Promise<PyPiPackageIndex> {
+  if (cachedPyPiPackageIndex && (Date.now() - cachedPyPiPackageIndex.loadedAt) < PYPI_INDEX_CACHE_TTL_MS) {
+    return cachedPyPiPackageIndex;
+  }
+
+  if (pyPiIndexLoadPromise) {
+    return pyPiIndexLoadPromise;
+  }
+
+  pyPiIndexLoadPromise = (async () => {
+    const response = await fetch('https://pypi.org/simple/', {
+      headers: {
+        Accept: 'text/html',
+        'User-Agent': 'uv-ui-tool-vscode-extension'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`PyPI index returned HTTP ${response.status}`);
+    }
+
+    const html = await response.text();
+    const names = parsePyPiSimpleIndexNames(html);
+    if (names.length === 0) {
+      throw new Error('PyPI package index did not contain package names.');
+    }
+
+    const index: PyPiPackageIndex = {
+      names,
+      loadedAt: Date.now()
+    };
+    cachedPyPiPackageIndex = index;
+    return index;
+  })();
+
+  try {
+    return await pyPiIndexLoadPromise;
+  } finally {
+    pyPiIndexLoadPromise = undefined;
+  }
+}
+
+function searchPyPiPackageIndex(names: string[], query: string): PyPiSearchResult[] {
+  const prefixMatches: string[] = [];
+  const substringMatches: string[] = [];
+
+  for (const packageName of names) {
+    if (packageName.startsWith(query)) {
+      prefixMatches.push(packageName);
+      if (prefixMatches.length >= 20) {
+        break;
+      }
+    } else if (packageName.includes(query)) {
+      substringMatches.push(packageName);
+    }
+
+    if ((prefixMatches.length + substringMatches.length) >= 20) {
+      break;
+    }
+  }
+
+  const merged = [...prefixMatches, ...substringMatches].slice(0, 20);
+  return merged.map(name => ({ name }));
+}
+
+function normalizePackageAddRequest(message: unknown): { request?: PackageAddRequest; error?: string } {
+  const payload = (message && typeof message === 'object') ? message as Record<string, unknown> : undefined;
+  const packageName = typeof payload?.packageName === 'string' ? payload.packageName.trim() : '';
+  if (!packageName) {
+    return { error: 'Please select a package before continuing.' };
+  }
+
+  if (!isValidPackageName(packageName)) {
+    return { error: `Invalid package name: ${packageName}` };
+  }
+
+  const request: PackageAddRequest = {
+    packageName,
+    dependencyTarget: normalizeDependencyTarget(payload?.dependencyTarget),
+    versionSpecifier: normalizeVersionSpecifier(payload?.versionSpecifier)
+  };
+
+  return { request };
+}
+
+async function searchPyPiPackages(query: string, requestId: number, webview: vscode.Webview) {
+  const trimmedQuery = query.trim().toLowerCase();
+  if (trimmedQuery.length < 2) {
+    webview.postMessage({ command: 'setPyPiSearchResults', requestId, query: trimmedQuery, results: [] });
+    return;
+  }
+
+  try {
+    const index = await loadPyPiPackageIndex();
+    const results = searchPyPiPackageIndex(index.names, trimmedQuery);
+    webview.postMessage({
+      command: 'setPyPiSearchResults',
+      requestId,
+      query: trimmedQuery,
+      results
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'PyPI package search failed.';
+    webview.postMessage({
+      command: 'setPyPiSearchResults',
+      requestId,
+      query: trimmedQuery,
+      results: [],
+      error: `Unable to search PyPI: ${message}`
+    });
+  }
+}
+
+async function prepareAddPackageCommand(message: unknown, webview: vscode.Webview) {
+  const normalized = normalizePackageAddRequest(message);
+  if (!normalized.request) {
+    webview.postMessage({ command: 'showAddPackageConfirmation', error: normalized.error ?? 'Invalid package input.' });
+    return;
+  }
+
+  webview.postMessage({
+    command: 'showAddPackageConfirmation',
+    commandText: buildUvAddCommandPreview(normalized.request),
+    payload: normalized.request
+  });
+}
+
+async function runUvAddPackage(message: unknown, webview: vscode.Webview) {
+  const normalized = normalizePackageAddRequest(message);
+  if (!normalized.request) {
+    webview.postMessage({ command: 'showAddPackageConfirmation', error: normalized.error ?? 'Invalid package input.' });
+    webview.postMessage({ command: 'packageAddFinished', success: false });
+    return;
+  }
+
+  const detection = await detectUvProject();
+  if (!detection.isUvProject) {
+    vscode.window.showErrorMessage('No UV project detected in the current workspace.');
+    webview.postMessage({ command: 'setOutput', text: detection.message });
+    webview.postMessage({ command: 'packageAddFinished', success: false });
+    return;
+  }
+
+  const projectRoot = detection.projectRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!projectRoot) {
+    webview.postMessage({ command: 'setOutput', text: 'Unable to determine the project root for command execution.' });
+    webview.postMessage({ command: 'packageAddFinished', success: false });
+    return;
+  }
+
+  const args = buildUvAddArgs(normalized.request);
+  const commandPreview = buildUvAddCommandPreview(normalized.request);
+  webview.postMessage({ command: 'clearOutput' });
+  postAppendOutput(webview, `$ ${commandPreview}\n\n`, 'command');
+
+  await new Promise<void>(resolve => {
+    const commandProcess = spawn('uv', args, {
+      cwd: projectRoot,
+      env: process.env,
+      windowsHide: true
+    });
+
+    let resolved = false;
+    const finalize = () => {
+      if (!resolved) {
+        resolved = true;
+        resolve();
+      }
+    };
+
+    commandProcess.stdout.on('data', (chunk: Buffer | string) => {
+      postAppendOutput(webview, chunk.toString(), 'stdout');
+    });
+
+    commandProcess.stderr.on('data', (chunk: Buffer | string) => {
+      postAppendOutput(webview, chunk.toString(), 'stderr');
+    });
+
+    commandProcess.on('error', error => {
+      postAppendOutput(webview, `Failed to run uv add: ${error.message}\n`, 'stderr');
+      finalize();
+    });
+
+    commandProcess.on('close', (code, signal) => {
+      if (signal) {
+        postAppendOutput(webview, `\nuv add terminated by signal: ${signal}\n`, 'system');
+      } else if (typeof code === 'number' && code !== 0) {
+        postAppendOutput(webview, `\nuv add exited with code: ${code}\n`, 'system');
+      }
+
+      webview.postMessage({ command: 'packageAddFinished', success: code === 0 });
+      finalize();
+    });
+  });
 }
 
 async function runUvCommand(commandText: string, webview?: vscode.Webview) {
@@ -581,6 +903,33 @@ async function runUvCommand(commandText: string, webview?: vscode.Webview) {
   webview?.postMessage({ command: 'commandFinished' });
 }
 
+async function handleWebviewMessage(message: Record<string, unknown>, webview: vscode.Webview, extensionUri: vscode.Uri) {
+  switch (message.command) {
+    case 'runUvCommand':
+      await runUvCommand(typeof message.text === 'string' ? message.text : '', webview);
+      break;
+    case 'parseDependencies':
+      await parseAndSendUvLockDependencies(webview, extensionUri);
+      break;
+    case 'setTheme':
+      await setCurrentTheme(normalizeThemeName(message.theme));
+      break;
+    case 'searchPyPiPackages':
+      await searchPyPiPackages(
+        typeof message.query === 'string' ? message.query : '',
+        typeof message.requestId === 'number' ? message.requestId : 0,
+        webview
+      );
+      break;
+    case 'prepareAddPackageCommand':
+      await prepareAddPackageCommand(message, webview);
+      break;
+    case 'addPackage':
+      await runUvAddPackage(message, webview);
+      break;
+  }
+}
+
 class UVPanel {
   public static currentPanel: UVPanel | undefined;
   private readonly panel: vscode.WebviewPanel;
@@ -632,17 +981,11 @@ class UVPanel {
 
   private setWebviewMessageListener(webview: vscode.Webview) {
     webview.onDidReceiveMessage(async message => {
-      switch (message.command) {
-        case 'runUvCommand':
-          await runUvCommand(message.text, webview);
-          break;
-        case 'parseDependencies':
-          await parseAndSendUvLockDependencies(webview, this.extensionUri);
-          break;
-        case 'setTheme':
-          await setCurrentTheme(normalizeThemeName(message.theme));
-          break;
+      if (!message || typeof message !== 'object') {
+        return;
       }
+
+      await handleWebviewMessage(message as Record<string, unknown>, webview, this.extensionUri);
     });
   }
 }
@@ -729,17 +1072,11 @@ class UVSidebarProvider implements vscode.WebviewViewProvider {
 
   private setWebviewMessageListener(webview: vscode.Webview) {
     webview.onDidReceiveMessage(async message => {
-      switch (message.command) {
-        case 'runUvCommand':
-          await runUvCommand(message.text, webview);
-          break;
-        case 'parseDependencies':
-          await parseAndSendUvLockDependencies(webview, this.extensionUri);
-          break;
-        case 'setTheme':
-          await setCurrentTheme(normalizeThemeName(message.theme));
-          break;
+      if (!message || typeof message !== 'object') {
+        return;
       }
+
+      await handleWebviewMessage(message as Record<string, unknown>, webview, this.extensionUri);
     });
   }
 }

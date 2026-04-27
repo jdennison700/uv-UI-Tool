@@ -8,6 +8,21 @@ const commandSelectButtons = document.querySelectorAll('.command-select-btn[data
 const openSettingsButton = document.getElementById('openSettingsButton');
 const settingsMenu = document.getElementById('settingsMenu');
 const themeSelect = document.getElementById('themeSelect');
+const packageSearchInput = document.getElementById('packageSearchInput');
+const packageSearchStatus = document.getElementById('packageSearchStatus');
+const packageResults = document.getElementById('packageResults');
+const dependencyTargetSelect = document.getElementById('dependencyTargetSelect');
+const versionModeSelect = document.getElementById('versionModeSelect');
+const versionSpecifierInput = document.getElementById('versionSpecifierInput');
+const prepareAddPackageButton = document.getElementById('prepareAddPackageButton');
+const confirmAddPackageButton = document.getElementById('confirmAddPackageButton');
+const addPackagePreview = document.getElementById('addPackagePreview');
+
+let searchDebounceHandle;
+let latestSearchRequestId = 0;
+let selectedPackageName = '';
+let isUvProject = false;
+let pendingAddPayload;
 
 const applyTheme = theme => {
   const resolvedTheme = theme === 'matte-black' ? 'matte-black' : 'sunset';
@@ -185,9 +200,81 @@ const setBusy = (button, isBusy, busyLabel) => {
     return;
   }
 
+  if (!Object.prototype.hasOwnProperty.call(button.dataset, 'wasDisabledBeforeBusy')) {
+    button.textContent = button.dataset.defaultText;
+    return;
+  }
+
   button.disabled = button.dataset.wasDisabledBeforeBusy === 'true';
   delete button.dataset.wasDisabledBeforeBusy;
   button.textContent = button.dataset.defaultText;
+};
+
+const clearPackageConfirmation = () => {
+  pendingAddPayload = undefined;
+  if (addPackagePreview) {
+    addPackagePreview.hidden = true;
+    addPackagePreview.textContent = '';
+  }
+  if (confirmAddPackageButton) {
+    confirmAddPackageButton.hidden = true;
+    confirmAddPackageButton.disabled = true;
+  }
+};
+
+const getVersionSpecifier = () => {
+  const isCustom = versionModeSelect?.value === 'custom';
+  if (!isCustom) {
+    return '';
+  }
+
+  return versionSpecifierInput?.value?.trim() ?? '';
+};
+
+const renderPackageResults = results => {
+  if (!packageResults) {
+    return;
+  }
+
+  packageResults.innerHTML = '';
+
+  if (!Array.isArray(results) || results.length === 0) {
+    return;
+  }
+
+  results.forEach(result => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'package-result';
+    row.dataset.packageName = result.name;
+
+    if (result.name === selectedPackageName) {
+      row.classList.add('selected');
+    }
+
+    const title = document.createElement('span');
+    title.className = 'package-result-name';
+    title.textContent = result.version ? `${result.name} (${result.version})` : result.name;
+
+    const summary = document.createElement('span');
+    summary.className = 'package-result-summary';
+    summary.textContent = result.summary || 'No description provided.';
+
+    row.append(title, summary);
+    row.addEventListener('click', () => {
+      selectedPackageName = result.name;
+      if (packageSearchInput) {
+        packageSearchInput.value = result.name;
+      }
+      clearPackageConfirmation();
+      renderPackageResults(results);
+      if (packageSearchStatus) {
+        packageSearchStatus.textContent = `Selected package: ${result.name}`;
+      }
+    });
+
+    packageResults.append(row);
+  });
 };
 
 const runCommand = () => {
@@ -197,6 +284,62 @@ const runCommand = () => {
   vscode.postMessage({
     command: 'runUvCommand',
     text: commandText
+  });
+};
+
+const queuePackageSearch = () => {
+  clearTimeout(searchDebounceHandle);
+  clearPackageConfirmation();
+  selectedPackageName = '';
+  const query = packageSearchInput?.value?.trim() ?? '';
+
+  if (!query) {
+    if (packageSearchStatus) {
+      packageSearchStatus.textContent = 'Type to search PyPI packages.';
+    }
+    renderPackageResults([]);
+    return;
+  }
+
+  searchDebounceHandle = setTimeout(() => {
+    latestSearchRequestId += 1;
+    const requestId = latestSearchRequestId;
+    if (packageSearchStatus) {
+      packageSearchStatus.textContent = 'Searching PyPI...';
+    }
+    vscode.postMessage({
+      command: 'searchPyPiPackages',
+      query,
+      requestId
+    });
+  }, 250);
+};
+
+const prepareAddPackage = () => {
+  const packageName = selectedPackageName || packageSearchInput?.value?.trim();
+  const dependencyTarget = dependencyTargetSelect?.value === 'dev' ? 'dev' : 'regular';
+  const versionSpecifier = getVersionSpecifier();
+
+  if (!packageName) {
+    if (packageSearchStatus) {
+      packageSearchStatus.textContent = 'Select a package before preparing the command.';
+    }
+    return;
+  }
+
+  if (versionModeSelect?.value === 'custom' && !versionSpecifier) {
+    if (packageSearchStatus) {
+      packageSearchStatus.textContent = 'Enter a version specifier (for example: ==2.32.3 or >=1.2).';
+    }
+    return;
+  }
+
+  setBusy(prepareAddPackageButton, true, 'Preparing...');
+  vscode.postMessage({
+    command: 'prepareAddPackageCommand',
+    packageName,
+    dependencyTarget,
+    versionSpecifier
   });
 };
 
@@ -227,6 +370,47 @@ commandSelectButtons.forEach(button => {
 
     commandInput.value = command;
     commandInput.focus();
+  });
+});
+
+packageSearchInput?.addEventListener('input', () => {
+  queuePackageSearch();
+});
+
+dependencyTargetSelect?.addEventListener('change', () => {
+  clearPackageConfirmation();
+});
+
+versionModeSelect?.addEventListener('change', () => {
+  clearPackageConfirmation();
+  const customMode = versionModeSelect.value === 'custom';
+  if (versionSpecifierInput) {
+    versionSpecifierInput.disabled = !customMode;
+    if (!customMode) {
+      versionSpecifierInput.value = '';
+    } else {
+      versionSpecifierInput.focus();
+    }
+  }
+});
+
+versionSpecifierInput?.addEventListener('input', () => {
+  clearPackageConfirmation();
+});
+
+prepareAddPackageButton?.addEventListener('click', () => {
+  prepareAddPackage();
+});
+
+confirmAddPackageButton?.addEventListener('click', () => {
+  if (!pendingAddPayload) {
+    return;
+  }
+
+  setBusy(confirmAddPackageButton, true, 'Adding...');
+  vscode.postMessage({
+    command: 'addPackage',
+    ...pendingAddPayload
   });
 });
 
@@ -292,25 +476,124 @@ window.addEventListener('message', event => {
     setBusy(parseDependenciesButton, false, 'Parsing...');
   }
 
+  if (message.command === 'setPyPiSearchResults') {
+    if (message.requestId !== latestSearchRequestId) {
+      return;
+    }
+
+    if (!isUvProject) {
+      return;
+    }
+
+    if (message.error) {
+      renderPackageResults([]);
+      if (packageSearchStatus) {
+        packageSearchStatus.textContent = message.error;
+      }
+      return;
+    }
+
+    renderPackageResults(message.results);
+    const resultsCount = Array.isArray(message.results) ? message.results.length : 0;
+    if (packageSearchStatus) {
+      packageSearchStatus.textContent = resultsCount > 0
+        ? `Found ${resultsCount} package${resultsCount === 1 ? '' : 's'}. Select one to continue.`
+        : 'No packages found for this query.';
+    }
+  }
+
+  if (message.command === 'showAddPackageConfirmation') {
+    setBusy(prepareAddPackageButton, false, 'Preparing...');
+    if (message.error) {
+      clearPackageConfirmation();
+      if (packageSearchStatus) {
+        packageSearchStatus.textContent = message.error;
+      }
+      return;
+    }
+
+    pendingAddPayload = message.payload;
+    if (addPackagePreview) {
+      addPackagePreview.hidden = false;
+      addPackagePreview.textContent = message.commandText;
+    }
+    if (confirmAddPackageButton) {
+      confirmAddPackageButton.hidden = false;
+      confirmAddPackageButton.disabled = false;
+    }
+    if (packageSearchStatus) {
+      packageSearchStatus.textContent = 'Review the command, then confirm to run uv add.';
+    }
+  }
+
+  if (message.command === 'packageAddFinished') {
+    setBusy(confirmAddPackageButton, false, 'Adding...');
+    if (!message.success) {
+      return;
+    }
+
+    clearPackageConfirmation();
+    if (packageSearchStatus) {
+      packageSearchStatus.textContent = 'Package added successfully.';
+    }
+  }
+
   if (message.command === 'setProjectStatus') {
     projectStatus.textContent = message.message;
-    const enabled = message.isUvProject === true;
+    isUvProject = message.isUvProject === true;
     if (runButton) {
-      runButton.disabled = !enabled;
+      runButton.disabled = !isUvProject;
       setBusy(runButton, false, 'Running...');
     }
 
     if (parseDependenciesButton) {
-      parseDependenciesButton.disabled = !enabled;
+      parseDependenciesButton.disabled = !isUvProject;
       setBusy(parseDependenciesButton, false, 'Parsing...');
     }
 
     if (commandInput) {
-      commandInput.disabled = !enabled;
+      commandInput.disabled = !isUvProject;
+    }
+
+    if (packageSearchInput) {
+      packageSearchInput.disabled = !isUvProject;
+      if (!isUvProject) {
+        packageSearchInput.value = '';
+      }
+    }
+
+    if (dependencyTargetSelect) {
+      dependencyTargetSelect.disabled = !isUvProject;
+    }
+
+    if (versionModeSelect) {
+      versionModeSelect.disabled = !isUvProject;
+    }
+
+    if (versionSpecifierInput) {
+      versionSpecifierInput.disabled = !isUvProject || versionModeSelect?.value !== 'custom';
+      if (!isUvProject) {
+        versionSpecifierInput.value = '';
+      }
+    }
+
+    if (prepareAddPackageButton) {
+      prepareAddPackageButton.disabled = !isUvProject;
+      setBusy(prepareAddPackageButton, false, 'Preparing...');
+    }
+
+    if (!isUvProject) {
+      renderPackageResults([]);
+      clearPackageConfirmation();
+      if (packageSearchStatus) {
+        packageSearchStatus.textContent = 'Open a uv project to search and add packages.';
+      }
+    } else if (packageSearchStatus && !packageSearchInput?.value.trim()) {
+      packageSearchStatus.textContent = 'Type to search PyPI packages.';
     }
 
     commandSelectButtons.forEach(button => {
-      button.disabled = !enabled;
+      button.disabled = !isUvProject;
     });
   }
 
