@@ -99,9 +99,14 @@ type PackageAddRequest = {
 };
 type PyPiSearchResult = { name: string; version?: string; summary?: string };
 type PyPiPackageIndex = { names: string[]; loadedAt: number };
+type PyPiPackageMetadataCacheEntry = { result: PyPiSearchResult; loadedAt: number };
 const PYPI_INDEX_CACHE_TTL_MS = 1000 * 60 * 30;
+const PYPI_PACKAGE_METADATA_CACHE_TTL_MS = 1000 * 60 * 30;
+const PYPI_USER_AGENT = 'uv-ui-tool-vscode-extension';
 let cachedPyPiPackageIndex: PyPiPackageIndex | undefined;
 let pyPiIndexLoadPromise: Promise<PyPiPackageIndex> | undefined;
+const cachedPyPiPackageMetadata = new Map<string, PyPiPackageMetadataCacheEntry>();
+const pyPiPackageMetadataLoadPromises = new Map<string, Promise<PyPiSearchResult>>();
 
 async function uriExists(uri: vscode.Uri): Promise<boolean> {
   try {
@@ -648,7 +653,7 @@ async function loadPyPiPackageIndex(): Promise<PyPiPackageIndex> {
     const response = await fetch('https://pypi.org/simple/', {
       headers: {
         Accept: 'text/html',
-        'User-Agent': 'uv-ui-tool-vscode-extension'
+        'User-Agent': PYPI_USER_AGENT
       }
     });
 
@@ -675,6 +680,90 @@ async function loadPyPiPackageIndex(): Promise<PyPiPackageIndex> {
   } finally {
     pyPiIndexLoadPromise = undefined;
   }
+}
+
+function normalizePyPiSummary(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const summary = value.trim().replace(/\s+/gu, ' ');
+  return summary || undefined;
+}
+
+function normalizePyPiVersion(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const version = value.trim();
+  return version || undefined;
+}
+
+async function loadPyPiPackageMetadata(packageName: string): Promise<PyPiSearchResult> {
+  const normalizedName = packageName.toLowerCase();
+  const now = Date.now();
+  const cached = cachedPyPiPackageMetadata.get(normalizedName);
+  if (cached && (now - cached.loadedAt) < PYPI_PACKAGE_METADATA_CACHE_TTL_MS) {
+    return cached.result;
+  }
+
+  const inFlight = pyPiPackageMetadataLoadPromises.get(normalizedName);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const metadataPromise = (async () => {
+    const response = await fetch(`https://pypi.org/pypi/${encodeURIComponent(normalizedName)}/json`, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': PYPI_USER_AGENT
+      }
+    });
+
+    if (!response.ok) {
+      return { name: normalizedName };
+    }
+
+    const payload = await response.json() as Record<string, unknown>;
+    const info = payload.info && typeof payload.info === 'object'
+      ? payload.info as Record<string, unknown>
+      : undefined;
+    const result: PyPiSearchResult = {
+      name: normalizedName,
+      version: normalizePyPiVersion(info?.version),
+      summary: normalizePyPiSummary(info?.summary)
+    };
+
+    cachedPyPiPackageMetadata.set(normalizedName, {
+      result,
+      loadedAt: Date.now()
+    });
+
+    return result;
+  })();
+
+  pyPiPackageMetadataLoadPromises.set(normalizedName, metadataPromise);
+
+  try {
+    return await metadataPromise;
+  } finally {
+    pyPiPackageMetadataLoadPromises.delete(normalizedName);
+  }
+}
+
+async function enrichPyPiSearchResults(results: PyPiSearchResult[]): Promise<PyPiSearchResult[]> {
+  const metadataResults = await Promise.allSettled(
+    results.map(result => loadPyPiPackageMetadata(result.name))
+  );
+
+  return metadataResults.map((metadataResult, index) => {
+    if (metadataResult.status === 'fulfilled') {
+      return metadataResult.value;
+    }
+
+    return results[index];
+  });
 }
 
 function searchPyPiPackageIndex(names: string[], query: string): PyPiSearchResult[] {
@@ -752,11 +841,12 @@ async function searchPyPiPackages(query: string, requestId: number, webview: vsc
   try {
     const index = await loadPyPiPackageIndex();
     const results = searchPyPiPackageIndex(index.names, trimmedQuery);
+    const enrichedResults = await enrichPyPiSearchResults(results);
     webview.postMessage({
       command: 'setPyPiSearchResults',
       requestId,
       query: trimmedQuery,
-      results
+      results: enrichedResults
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'PyPI package search failed.';
