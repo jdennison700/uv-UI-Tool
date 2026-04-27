@@ -500,39 +500,45 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
         <button id="parseDependenciesButton" class="btn btn-secondary">Open dependency graph</button>
       </section>
 
-      <section class="package-card">
-        <label for="packageSearchInput" class="input-label">Add packages from PyPI</label>
-        <input id="packageSearchInput" type="search" placeholder="Search package names..." spellcheck="false" />
-        <p id="packageSearchStatus" class="package-search-status">Type to search PyPI packages.</p>
-        <div id="packageResults" class="package-results" aria-live="polite"></div>
+      <details class="package-card package-collapsible" open>
+        <summary class="package-collapsible-summary">
+          <span class="package-collapsible-title">Package adder</span>
+          <span class="package-collapsible-hint">Collapse</span>
+        </summary>
+        <div class="package-collapsible-content">
+          <label for="packageSearchInput" class="input-label">Add packages from PyPI</label>
+          <input id="packageSearchInput" type="search" placeholder="Search package names..." spellcheck="false" />
+          <p id="packageSearchStatus" class="package-search-status">Type to search PyPI packages.</p>
+          <div id="packageResults" class="package-results" aria-live="polite"></div>
 
-        <div class="package-options">
-          <label class="package-option">
-            <span>Dependency target</span>
-            <select id="dependencyTargetSelect" class="settings-select">
-              <option value="regular">Regular dependency</option>
-              <option value="dev">Dev dependency (--dev)</option>
-            </select>
-          </label>
-          <label class="package-option">
-            <span>Version mode</span>
-            <select id="versionModeSelect" class="settings-select">
-              <option value="latest">Latest</option>
-              <option value="custom">Custom specifier</option>
-            </select>
-          </label>
-          <label class="package-option">
-            <span>Version specifier</span>
-            <input id="versionSpecifierInput" type="text" placeholder="==2.32.3 or >=2.30" spellcheck="false" disabled />
-          </label>
-        </div>
+          <div class="package-options">
+            <label class="package-option">
+              <span>Dependency target</span>
+              <select id="dependencyTargetSelect" class="settings-select">
+                <option value="regular">Regular dependency</option>
+                <option value="dev">Dev dependency (--dev)</option>
+              </select>
+            </label>
+            <label class="package-option">
+              <span>Version mode</span>
+              <select id="versionModeSelect" class="settings-select">
+                <option value="latest">Latest</option>
+                <option value="custom">Custom specifier</option>
+              </select>
+            </label>
+            <label class="package-option">
+              <span>Version specifier</span>
+              <input id="versionSpecifierInput" type="text" placeholder="==2.32.3 or >=2.30" spellcheck="false" disabled />
+            </label>
+          </div>
 
-        <div class="package-actions">
-          <button id="prepareAddPackageButton" class="btn btn-secondary">Prepare add command</button>
-          <button id="confirmAddPackageButton" class="btn btn-primary" hidden>Confirm and run</button>
+          <div class="package-actions">
+            <button id="prepareAddPackageButton" class="btn btn-secondary">Prepare add command</button>
+            <button id="confirmAddPackageButton" class="btn btn-primary" hidden>Confirm and run</button>
+          </div>
+          <pre id="addPackagePreview" class="package-preview" hidden></pre>
         </div>
-        <pre id="addPackagePreview" class="package-preview" hidden></pre>
-      </section>
+      </details>
 
       <section class="output-card">
         <div class="output-header">

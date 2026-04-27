@@ -392,6 +392,67 @@ input:disabled {
   gap: 0.62rem;
 }
 
+.package-collapsible {
+  padding: 0;
+  overflow: clip;
+}
+
+.package-collapsible-summary {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.85rem;
+  cursor: pointer;
+}
+
+.package-collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+
+.package-collapsible-summary::before {
+  content: '▸';
+  color: #9a3412;
+  margin-right: 0.35rem;
+}
+
+.package-collapsible[open] .package-collapsible-summary::before {
+  content: '▾';
+}
+
+.package-collapsible-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #9a3412;
+}
+
+.package-collapsible-hint {
+  font-size: 0;
+}
+
+.package-collapsible[open] .package-collapsible-hint::before {
+  content: 'Collapse';
+  font-size: 0.78rem;
+  color: #7c2d12;
+}
+
+.package-collapsible:not([open]) .package-collapsible-hint::before {
+  content: 'Expand';
+  font-size: 0.78rem;
+  color: #9a3412;
+}
+
+.package-collapsible-content {
+  border-top: 1px solid rgba(217, 71, 31, 0.14);
+  padding: 0.2rem 1rem 1rem;
+  display: grid;
+  gap: 0.62rem;
+}
+
 .package-search-status {
   margin: 0;
   font-size: 0.82rem;
@@ -710,6 +771,7 @@ body[data-theme='matte-black'] .settings-select {
 body[data-theme='matte-black'] .status-label,
 body[data-theme='matte-black'] .input-label,
 body[data-theme='matte-black'] .command-library-title,
+body[data-theme='matte-black'] .package-collapsible-title,
 body[data-theme='matte-black'] .command-group-title,
 body[data-theme='matte-black'] .settings-label,
 body[data-theme='matte-black'] .package-search-status,
@@ -717,6 +779,11 @@ body[data-theme='matte-black'] .package-option,
 body[data-theme='matte-black'] .deps-stat-label,
 body[data-theme='matte-black'] .deps-item-badge,
 body[data-theme='matte-black'] .deps-empty {
+  color: #f3b18d;
+}
+
+body[data-theme='matte-black'] .package-collapsible-summary::before,
+body[data-theme='matte-black'] .package-collapsible-hint::before {
   color: #f3b18d;
 }
 
