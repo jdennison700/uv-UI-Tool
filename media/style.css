@@ -170,6 +170,19 @@ h1 {
   border: 1px solid var(--border);
 }
 
+.python-version-card {
+  margin-top: 1rem;
+  padding: 0;
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  overflow: clip;
+}
+
+body[data-surface='panel'] .sidebar-only {
+  display: none;
+}
+
 .status-meta {
   display: flex;
   align-items: center;

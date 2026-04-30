@@ -17,12 +17,19 @@ const versionSpecifierInput = document.getElementById('versionSpecifierInput');
 const prepareAddPackageButton = document.getElementById('prepareAddPackageButton');
 const confirmAddPackageButton = document.getElementById('confirmAddPackageButton');
 const addPackagePreview = document.getElementById('addPackagePreview');
+const pythonVersionStatus = document.getElementById('pythonVersionStatus');
+const pythonVersionSelect = document.getElementById('pythonVersionSelect');
+const refreshPythonVersionsButton = document.getElementById('refreshPythonVersionsButton');
+const preparePythonVersionButton = document.getElementById('preparePythonVersionButton');
+const confirmPythonVersionButton = document.getElementById('confirmPythonVersionButton');
+const pythonVersionPreview = document.getElementById('pythonVersionPreview');
 
 let searchDebounceHandle;
 let latestSearchRequestId = 0;
 const selectedPackageNames = new Set();
 let isUvProject = false;
 let pendingAddPayload;
+let pendingPythonVersionPayload;
 
 const applyTheme = theme => {
   const resolvedTheme = theme === 'matte-black' ? 'matte-black' : 'sunset';
@@ -220,6 +227,76 @@ const clearPackageConfirmation = () => {
     confirmAddPackageButton.hidden = true;
     confirmAddPackageButton.disabled = true;
   }
+};
+
+const clearPythonVersionConfirmation = () => {
+  pendingPythonVersionPayload = undefined;
+  if (pythonVersionPreview) {
+    pythonVersionPreview.hidden = true;
+    pythonVersionPreview.textContent = '';
+  }
+  if (confirmPythonVersionButton) {
+    confirmPythonVersionButton.hidden = true;
+    confirmPythonVersionButton.disabled = true;
+  }
+};
+
+const renderPythonVersionOptions = (versions, currentVersion) => {
+  if (!pythonVersionSelect) {
+    return;
+  }
+
+  pythonVersionSelect.innerHTML = '';
+  if (!Array.isArray(versions) || versions.length === 0) {
+    const fallbackOption = document.createElement('option');
+    fallbackOption.value = '';
+    fallbackOption.textContent = 'No versions available';
+    pythonVersionSelect.append(fallbackOption);
+    pythonVersionSelect.value = '';
+    return;
+  }
+
+  versions.forEach(version => {
+    const option = document.createElement('option');
+    option.value = version;
+    option.textContent = version;
+    pythonVersionSelect.append(option);
+  });
+
+  if (typeof currentVersion === 'string' && versions.includes(currentVersion)) {
+    pythonVersionSelect.value = currentVersion;
+    return;
+  }
+
+  pythonVersionSelect.value = versions[0];
+};
+
+const loadPythonVersions = () => {
+  if (!isUvProject || !pythonVersionSelect) {
+    return;
+  }
+
+  setBusy(refreshPythonVersionsButton, true, 'Refreshing...');
+  if (pythonVersionStatus) {
+    pythonVersionStatus.textContent = 'Loading available CPython versions...';
+  }
+  vscode.postMessage({ command: 'loadPythonVersions' });
+};
+
+const preparePythonVersionChange = () => {
+  const selectedVersion = pythonVersionSelect?.value?.trim() ?? '';
+  if (!selectedVersion) {
+    if (pythonVersionStatus) {
+      pythonVersionStatus.textContent = 'Select a Python version before preparing the command.';
+    }
+    return;
+  }
+
+  setBusy(preparePythonVersionButton, true, 'Preparing...');
+  vscode.postMessage({
+    command: 'preparePythonVersionChange',
+    version: selectedVersion
+  });
 };
 
 const getSelectedPackageNames = () => Array.from(selectedPackageNames);
@@ -421,6 +498,31 @@ confirmAddPackageButton?.addEventListener('click', () => {
   });
 });
 
+refreshPythonVersionsButton?.addEventListener('click', () => {
+  clearPythonVersionConfirmation();
+  loadPythonVersions();
+});
+
+pythonVersionSelect?.addEventListener('change', () => {
+  clearPythonVersionConfirmation();
+});
+
+preparePythonVersionButton?.addEventListener('click', () => {
+  preparePythonVersionChange();
+});
+
+confirmPythonVersionButton?.addEventListener('click', () => {
+  if (!pendingPythonVersionPayload) {
+    return;
+  }
+
+  setBusy(confirmPythonVersionButton, true, 'Pinning...');
+  vscode.postMessage({
+    command: 'changePythonVersion',
+    ...pendingPythonVersionPayload
+  });
+});
+
 openSettingsButton?.addEventListener('click', event => {
   event.stopPropagation();
   if (!settingsMenu) {
@@ -552,6 +654,73 @@ window.addEventListener('message', event => {
     }
   }
 
+  if (message.command === 'setPythonVersionOptions') {
+    setBusy(refreshPythonVersionsButton, false, 'Refreshing...');
+    if (!isUvProject) {
+      return;
+    }
+
+    if (message.error) {
+      renderPythonVersionOptions([]);
+      if (pythonVersionStatus) {
+        pythonVersionStatus.textContent = `Unable to load versions: ${message.error}`;
+      }
+      return;
+    }
+
+    const versions = Array.isArray(message.versions) ? message.versions : [];
+    renderPythonVersionOptions(versions, message.currentVersion);
+    if (pythonVersionStatus) {
+      if (versions.length === 0) {
+        pythonVersionStatus.textContent = 'No stable CPython download versions were returned by uv.';
+      } else if (message.currentVersion && versions.includes(message.currentVersion)) {
+        pythonVersionStatus.textContent = `Current pinned version: ${message.currentVersion}`;
+      } else {
+        pythonVersionStatus.textContent = `Loaded ${versions.length} stable CPython version${versions.length === 1 ? '' : 's'}.`;
+      }
+    }
+  }
+
+  if (message.command === 'showPythonVersionConfirmation') {
+    setBusy(preparePythonVersionButton, false, 'Preparing...');
+    if (message.error) {
+      clearPythonVersionConfirmation();
+      if (pythonVersionStatus) {
+        pythonVersionStatus.textContent = message.error;
+      }
+      return;
+    }
+
+    pendingPythonVersionPayload = message.payload;
+    if (pythonVersionPreview) {
+      pythonVersionPreview.hidden = false;
+      pythonVersionPreview.textContent = message.commandText;
+    }
+    if (confirmPythonVersionButton) {
+      confirmPythonVersionButton.hidden = false;
+      confirmPythonVersionButton.disabled = false;
+    }
+    if (pythonVersionStatus) {
+      pythonVersionStatus.textContent = 'Review the command, then confirm to pin this Python version.';
+    }
+  }
+
+  if (message.command === 'pythonVersionChangeFinished') {
+    setBusy(confirmPythonVersionButton, false, 'Pinning...');
+    if (!message.success) {
+      return;
+    }
+
+    clearPythonVersionConfirmation();
+    if (pythonVersionStatus) {
+      const versionText = typeof message.version === 'string' ? message.version : pythonVersionSelect?.value ?? '';
+      pythonVersionStatus.textContent = versionText
+        ? `Python version pinned to ${versionText}.`
+        : 'Python version pinned successfully.';
+    }
+    loadPythonVersions();
+  }
+
   if (message.command === 'setProjectStatus') {
     projectStatus.textContent = message.message;
     isUvProject = message.isUvProject === true;
@@ -596,15 +765,37 @@ window.addEventListener('message', event => {
       setBusy(prepareAddPackageButton, false, 'Preparing...');
     }
 
+    if (pythonVersionSelect) {
+      pythonVersionSelect.disabled = !isUvProject;
+    }
+
+    if (refreshPythonVersionsButton) {
+      refreshPythonVersionsButton.disabled = !isUvProject;
+      setBusy(refreshPythonVersionsButton, false, 'Refreshing...');
+    }
+
+    if (preparePythonVersionButton) {
+      preparePythonVersionButton.disabled = !isUvProject;
+      setBusy(preparePythonVersionButton, false, 'Preparing...');
+    }
+
     if (!isUvProject) {
       selectedPackageNames.clear();
       renderPackageResults([]);
       clearPackageConfirmation();
+      clearPythonVersionConfirmation();
+      renderPythonVersionOptions([]);
       if (packageSearchStatus) {
         packageSearchStatus.textContent = 'Open a uv project to search and add packages.';
       }
+      if (pythonVersionStatus) {
+        pythonVersionStatus.textContent = 'Open a uv project to load available Python versions.';
+      }
     } else if (packageSearchStatus && !packageSearchInput?.value.trim()) {
       packageSearchStatus.textContent = 'Type to search PyPI packages.';
+      loadPythonVersions();
+    } else {
+      loadPythonVersions();
     }
 
     commandSelectButtons.forEach(button => {
