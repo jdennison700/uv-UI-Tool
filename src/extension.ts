@@ -701,18 +701,58 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
             </summary>
             <div class="command-library-content">
               <div class="command-group">
-                <p class="command-group-title">Project setup</p>
-                <div class="command-chips">
-                  <button type="button" class="chip command-select-btn" data-command="uv --version" title="Check installed uv version">uv --version</button>
-                  <button type="button" class="chip command-select-btn" data-command="uv lock" title="Regenerate uv.lock">uv lock</button>
-                  <button type="button" class="chip command-select-btn" data-command="uv tree" title="Show dependency tree">uv tree</button>
+                <p class="command-group-title">Environment and sync</p>
+                <div class="command-catalog">
+                  <button type="button" class="command-entry command-select-btn" data-command="uv sync" title="Sync environment with lockfile">
+                    <span class="command-entry-name">uv sync</span>
+                    <span class="command-entry-desc">Create/update the project environment from uv.lock.</span>
+                  </button>
+                  <button type="button" class="command-entry command-select-btn" data-command="uv lock" title="Regenerate lockfile">
+                    <span class="command-entry-name">uv lock</span>
+                    <span class="command-entry-desc">Resolve dependencies and regenerate uv.lock.</span>
+                  </button>
+                  <button type="button" class="command-entry command-select-btn" data-command="uv tree" title="Show dependency tree">
+                    <span class="command-entry-name">uv tree</span>
+                    <span class="command-entry-desc">Print the installed dependency tree.</span>
+                  </button>
+                  <button type="button" class="command-entry command-select-btn" data-command="uv --version" title="Show uv version">
+                    <span class="command-entry-name">uv --version</span>
+                    <span class="command-entry-desc">Show the installed uv CLI version.</span>
+                  </button>
                 </div>
               </div>
               <div class="command-group">
-                <p class="command-group-title">Run and test</p>
-                <div class="command-chips">
-                  <button type="button" class="chip command-select-btn" data-command="uv run pytest" title="Run tests with uv-managed env">uv run pytest</button>
-                  <button type="button" class="chip command-select-btn" data-command="uv pip list" title="List installed packages">uv pip list</button>
+                <p class="command-group-title">Run and inspect</p>
+                <div class="command-catalog">
+                  <button type="button" class="command-entry command-select-btn" data-command="uv run pytest" title="Run tests with project environment">
+                    <span class="command-entry-name">uv run pytest</span>
+                    <span class="command-entry-desc">Run tests using the uv-managed environment.</span>
+                  </button>
+                  <button type="button" class="command-entry command-select-btn" data-command="uv run python -V" title="Show project Python version">
+                    <span class="command-entry-name">uv run python -V</span>
+                    <span class="command-entry-desc">Show the Python version from the project environment.</span>
+                  </button>
+                  <button type="button" class="command-entry command-select-btn" data-command="uv pip list" title="List installed packages">
+                    <span class="command-entry-name">uv pip list</span>
+                    <span class="command-entry-desc">List currently installed packages.</span>
+                  </button>
+                  <button type="button" class="command-entry command-select-btn" data-command="uv python list --only-downloads" title="List available Python versions">
+                    <span class="command-entry-name">uv python list --only-downloads</span>
+                    <span class="command-entry-desc">Show downloadable Python versions from uv.</span>
+                  </button>
+                </div>
+              </div>
+              <div class="command-group">
+                <p class="command-group-title">Project maintenance</p>
+                <div class="command-catalog">
+                  <button type="button" class="command-entry command-select-btn" data-command="uv remove requests" title="Remove package dependency">
+                    <span class="command-entry-name">uv remove &lt;package&gt;</span>
+                    <span class="command-entry-desc">Remove a dependency from the project.</span>
+                  </button>
+                  <button type="button" class="command-entry command-select-btn" data-command="uv python pin 3.12" title="Pin project Python version">
+                    <span class="command-entry-name">uv python pin &lt;version&gt;</span>
+                    <span class="command-entry-desc">Pin the project Python version in .python-version.</span>
+                  </button>
                 </div>
               </div>
             </div>

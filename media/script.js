@@ -388,6 +388,11 @@ const renderPackageResults = results => {
 const runCommand = () => {
   const commandText = commandInput?.value?.trim() || 'uv --version';
   setBusy(runButton, true, 'Running...');
+  if (output) {
+    output.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    output.setAttribute('tabindex', '-1');
+    output.focus({ preventScroll: true });
+  }
 
   vscode.postMessage({
     command: 'runUvCommand',

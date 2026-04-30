@@ -278,6 +278,40 @@ input:focus,
   gap: 0.6rem;
 }
 
+.command-catalog {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.command-entry {
+  text-align: left;
+  border-radius: 8px;
+  border: 1px solid rgba(156, 178, 197, 0.2);
+  background: rgba(15, 23, 32, 0.78);
+  color: var(--text);
+  padding: 0.46rem 0.56rem;
+  cursor: pointer;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.command-entry:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: rgba(50, 214, 255, 0.1);
+}
+
+.command-entry-name {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: #c9f3ff;
+}
+
+.command-entry-desc {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
 .package-search-status {
   margin: 0;
   font-size: 0.78rem;
