@@ -4,6 +4,12 @@ const parseDependenciesButton = document.getElementById('parseDependenciesButton
 const commandInput = document.getElementById('commandInput');
 const output = document.getElementById('output');
 const projectStatus = document.getElementById('projectStatus');
+const projectPath = document.getElementById('projectPath');
+const connectionIndicator = document.getElementById('connectionIndicator');
+const copyOutputButton = document.getElementById('copyOutputButton');
+const appSidebar = document.getElementById('appSidebar');
+const sidebarToggleButton = document.getElementById('sidebarToggleButton');
+const sidebarNavButtons = document.querySelectorAll('.sidebar-nav-btn[data-target]');
 const commandSelectButtons = document.querySelectorAll('.command-select-btn[data-command]');
 const openSettingsButton = document.getElementById('openSettingsButton');
 const settingsMenu = document.getElementById('settingsMenu');
@@ -30,6 +36,7 @@ const selectedPackageNames = new Set();
 let isUvProject = false;
 let pendingAddPayload;
 let pendingPythonVersionPayload;
+const isSidebarSurface = document.body?.getAttribute('data-surface') === 'sidebar';
 
 const applyTheme = theme => {
   const resolvedTheme = theme === 'matte-black' ? 'matte-black' : 'sunset';
@@ -44,9 +51,27 @@ const appendTerminalChunk = (text, stream = 'stdout') => {
     return;
   }
 
+  const escapeHtml = value => value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+  const highlighted = escapeHtml(text).replace(
+    /\b([A-Za-z0-9._-]+==)?(\d+\.\d+(?:\.\d+)?(?:[-+][A-Za-z0-9.]+)?)\b/g,
+    (_, packagePrefix, version) => {
+      if (packagePrefix) {
+        const packageName = packagePrefix.slice(0, -2);
+        return `<span class="terminal-package">${packageName}</span>==<span class="terminal-version">${version}</span>`;
+      }
+
+      return `<span class="terminal-version">${version}</span>`;
+    }
+  );
+
   const chunk = document.createElement('span');
   chunk.className = `terminal-chunk terminal-${stream}`;
-  chunk.textContent = text;
+  chunk.innerHTML = highlighted;
   output.append(chunk);
   output.scrollTop = output.scrollHeight;
 };
@@ -370,6 +395,15 @@ const runCommand = () => {
   });
 };
 
+const setSidebarCollapsed = collapsed => {
+  document.body?.setAttribute('data-sidebar-collapsed', collapsed ? 'true' : 'false');
+  if (sidebarToggleButton) {
+    sidebarToggleButton.textContent = collapsed ? '⟩' : '⟨';
+    sidebarToggleButton.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    sidebarToggleButton.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+  }
+};
+
 const queuePackageSearch = () => {
   clearTimeout(searchDebounceHandle);
   clearPackageConfirmation();
@@ -520,6 +554,42 @@ confirmPythonVersionButton?.addEventListener('click', () => {
   vscode.postMessage({
     command: 'changePythonVersion',
     ...pendingPythonVersionPayload
+  });
+});
+
+copyOutputButton?.addEventListener('click', async () => {
+  if (!output || !navigator?.clipboard) {
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(output.innerText ?? '');
+    setBusy(copyOutputButton, true, 'Copied');
+    setTimeout(() => {
+      setBusy(copyOutputButton, false, 'Copied');
+    }, 900);
+  } catch {
+    setBusy(copyOutputButton, true, 'Copy failed');
+    setTimeout(() => {
+      setBusy(copyOutputButton, false, 'Copy failed');
+    }, 1200);
+  }
+});
+
+sidebarToggleButton?.addEventListener('click', () => {
+  const collapsed = document.body?.getAttribute('data-sidebar-collapsed') === 'true';
+  setSidebarCollapsed(!collapsed);
+});
+
+sidebarNavButtons.forEach(button => {
+  button.addEventListener('click', () => {
+    const targetId = button.getAttribute('data-target');
+    if (!targetId) {
+      return;
+    }
+
+    const targetElement = document.getElementById(targetId);
+    targetElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 });
 
@@ -724,6 +794,16 @@ window.addEventListener('message', event => {
   if (message.command === 'setProjectStatus') {
     projectStatus.textContent = message.message;
     isUvProject = message.isUvProject === true;
+    if (projectPath) {
+      projectPath.textContent = typeof message.projectRoot === 'string' && message.projectRoot
+        ? message.projectRoot
+        : 'No project selected';
+    }
+    if (connectionIndicator) {
+      connectionIndicator.textContent = isUvProject ? 'Connected' : 'Disconnected';
+      connectionIndicator.classList.toggle('connected', isUvProject);
+      connectionIndicator.classList.toggle('disconnected', !isUvProject);
+    }
     if (runButton) {
       runButton.disabled = !isUvProject;
       setBusy(runButton, false, 'Running...');
@@ -807,3 +887,7 @@ window.addEventListener('message', event => {
     applyTheme(message.theme);
   }
 });
+
+if (appSidebar) {
+  setSidebarCollapsed(isSidebarSurface);
+}

@@ -621,137 +621,154 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
   <title>UV UI Tool</title>
 </head>
 <body data-theme="${theme}" data-surface="${surface}">
-  <div class="app-shell">
-    <div class="background-glow background-glow-top"></div>
-    <div class="background-glow background-glow-bottom"></div>
+  <div class="app-layout">
+    <aside id="appSidebar" class="tool-sidebar">
+      <div class="sidebar-top">
+        <button id="sidebarToggleButton" class="icon-btn sidebar-toggle" type="button" title="Collapse sidebar" aria-label="Collapse sidebar">⟨</button>
+      </div>
+      <div class="sidebar-section">
+        <p class="sidebar-section-title">Primary Actions</p>
+        <button type="button" class="sidebar-nav-btn" data-target="primarySection">Command Center</button>
+      </div>
+      <div class="sidebar-section">
+        <p class="sidebar-section-title">Advanced Tools</p>
+        <button type="button" class="sidebar-nav-btn" data-target="advancedSection">Dependency Tools</button>
+      </div>
+    </aside>
 
-    <main class="container">
-      <header class="hero">
-        <div class="hero-headline">
+    <main class="workspace">
+      <header class="status-header">
+        <div>
           <h1>UV UI Tool</h1>
-          <button id="openSettingsButton" class="icon-btn" type="button" title="Open settings" aria-label="Open settings">⚙</button>
+          <p id="projectPath" class="project-path">No project selected</p>
         </div>
-        <div id="settingsMenu" class="settings-menu" hidden>
-          <label for="themeSelect" class="settings-label">Theme</label>
-          <select id="themeSelect" class="settings-select">
-            <option value="sunset">Sunset</option>
-            <option value="matte-black">Matte Black</option>
-          </select>
+        <div class="status-header-actions">
+          <span id="connectionIndicator" class="connection-pill disconnected">Disconnected</span>
+          <button id="openSettingsButton" class="icon-btn" type="button" title="Open settings" aria-label="Open settings">⚙</button>
+          <div id="settingsMenu" class="settings-menu" hidden>
+            <label for="themeSelect" class="settings-label">Theme</label>
+            <select id="themeSelect" class="settings-select">
+              <option value="sunset">Sunset</option>
+              <option value="matte-black">Matte Black</option>
+            </select>
+          </div>
         </div>
       </header>
 
-      <section class="status-card">
-        <div class="status-meta">
-          <span class="status-dot" aria-hidden="true"></span>
+      <section id="primarySection" class="content-card command-center-card">
+        <section class="status-bar">
           <span class="status-label">Workspace status</span>
-        </div>
-        <div id="projectStatus" class="status">Detecting UV project...</div>
+          <span id="projectStatus" class="status-text">Detecting UV project...</span>
+        </section>
+
+        <details class="python-version-card" open>
+          <summary class="package-collapsible-summary">
+            <span class="package-collapsible-title">Python version</span>
+            <span class="package-collapsible-hint">Collapse</span>
+          </summary>
+          <div class="package-collapsible-content">
+            <p id="pythonVersionStatus" class="package-search-status">Open a uv project to load available Python versions.</p>
+            <label class="package-option">
+              <span>Available CPython versions</span>
+              <select id="pythonVersionSelect" class="settings-select" disabled>
+                <option value="">Loading versions...</option>
+              </select>
+            </label>
+            <div class="package-actions">
+              <button id="refreshPythonVersionsButton" class="btn btn-secondary" disabled>Refresh versions</button>
+              <button id="preparePythonVersionButton" class="btn btn-secondary" disabled>Prepare python pin command</button>
+              <button id="confirmPythonVersionButton" class="btn btn-primary" hidden>Confirm and run</button>
+            </div>
+            <pre id="pythonVersionPreview" class="package-preview" hidden></pre>
+          </div>
+        </details>
+
+        <section class="command-shell">
+          <label for="commandInput" class="input-label">Command center</label>
+          <div class="command-row">
+            <input id="commandInput" type="text" placeholder="Type a uv command (for example: uv sync)" spellcheck="false" />
+            <button id="runButton" class="btn btn-primary">Run</button>
+          </div>
+          <div class="quick-actions sidebar-quick-actions">
+            <button type="button" class="chip command-select-btn" data-command="uv sync" title="Sync environment with lockfile">uv sync</button>
+            <button type="button" class="chip command-select-btn" data-command="uv run python -V" title="Run python from project environment">python -V</button>
+            <button type="button" class="chip command-select-btn" data-command="uv run pytest" title="Run tests with uv-managed env">run tests</button>
+          </div>
+          <details class="command-library" aria-label="Command menu">
+            <summary class="command-library-summary">
+              <span class="command-library-title">More commands</span>
+              <span class="command-library-hint">Expand</span>
+            </summary>
+            <div class="command-library-content">
+              <div class="command-group">
+                <p class="command-group-title">Project setup</p>
+                <div class="command-chips">
+                  <button type="button" class="chip command-select-btn" data-command="uv --version" title="Check installed uv version">uv --version</button>
+                  <button type="button" class="chip command-select-btn" data-command="uv lock" title="Regenerate uv.lock">uv lock</button>
+                  <button type="button" class="chip command-select-btn" data-command="uv tree" title="Show dependency tree">uv tree</button>
+                </div>
+              </div>
+              <div class="command-group">
+                <p class="command-group-title">Run and test</p>
+                <div class="command-chips">
+                  <button type="button" class="chip command-select-btn" data-command="uv run pytest" title="Run tests with uv-managed env">uv run pytest</button>
+                  <button type="button" class="chip command-select-btn" data-command="uv pip list" title="List installed packages">uv pip list</button>
+                </div>
+              </div>
+            </div>
+          </details>
+        </section>
       </section>
 
-      <details class="python-version-card sidebar-only">
-        <summary class="package-collapsible-summary">
-          <span class="package-collapsible-title">Python version</span>
-          <span class="package-collapsible-hint">Collapse</span>
-        </summary>
-        <div class="package-collapsible-content">
-          <p id="pythonVersionStatus" class="package-search-status">Open a uv project to load available Python versions.</p>
-          <label class="package-option">
-            <span>Available CPython versions</span>
-            <select id="pythonVersionSelect" class="settings-select" disabled>
-              <option value="">Loading versions...</option>
-            </select>
-          </label>
-          <div class="package-actions">
-            <button id="refreshPythonVersionsButton" class="btn btn-secondary" disabled>Refresh versions</button>
-            <button id="preparePythonVersionButton" class="btn btn-secondary" disabled>Prepare python pin command</button>
-            <button id="confirmPythonVersionButton" class="btn btn-primary" hidden>Confirm and run</button>
-          </div>
-          <pre id="pythonVersionPreview" class="package-preview" hidden></pre>
-        </div>
-      </details>
+      <section id="advancedSection" class="content-card advanced-tools-card">
+        <h2 class="section-heading">Advanced tools</h2>
+        <section class="actions-row">
+          <button id="parseDependenciesButton" class="btn btn-secondary">Open dependency graph</button>
+        </section>
 
-      <section class="command-card">
-        <label for="commandInput" class="input-label">Command</label>
-        <div class="command-row">
-          <input id="commandInput" type="text" placeholder="uv --version" spellcheck="false" />
-          <button id="runButton" class="btn btn-primary">Run</button>
-        </div>
-        <details class="command-library" aria-label="Command menu">
-          <summary class="command-library-summary">
-            <span class="command-library-title">Popular uv commands</span>
-            <span class="command-library-hint">Expand</span>
+        <details class="package-card package-collapsible">
+          <summary class="package-collapsible-summary">
+            <span class="package-collapsible-title">Package adder</span>
+            <span class="package-collapsible-hint">Collapse</span>
           </summary>
-
-          <div class="command-library-content">
-            <div class="command-group">
-              <p class="command-group-title">Project setup</p>
-              <div class="command-chips">
-                <button type="button" class="chip command-select-btn" data-command="uv --version" title="Check installed uv version">uv --version</button>
-                <button type="button" class="chip command-select-btn" data-command="uv sync" title="Sync environment with lockfile">uv sync</button>
-                <button type="button" class="chip command-select-btn" data-command="uv lock" title="Regenerate uv.lock">uv lock</button>
-                <button type="button" class="chip command-select-btn" data-command="uv tree" title="Show dependency tree">uv tree</button>
-              </div>
+          <div class="package-collapsible-content">
+            <label for="packageSearchInput" class="input-label">Add packages from PyPI</label>
+            <input id="packageSearchInput" type="search" placeholder="Search package names..." spellcheck="false" />
+            <p id="packageSearchStatus" class="package-search-status">Type to search PyPI packages.</p>
+            <div id="packageResults" class="package-results" aria-live="polite"></div>
+            <div class="package-options">
+              <label class="package-option">
+                <span>Dependency target</span>
+                <select id="dependencyTargetSelect" class="settings-select">
+                  <option value="regular">Regular dependency</option>
+                  <option value="dev">Dev dependency (--dev)</option>
+                </select>
+              </label>
+              <label class="package-option">
+                <span>Version mode</span>
+                <select id="versionModeSelect" class="settings-select">
+                  <option value="latest">Latest</option>
+                  <option value="custom">Custom specifier</option>
+                </select>
+              </label>
+              <label class="package-option">
+                <span>Version specifier</span>
+                <input id="versionSpecifierInput" type="text" placeholder="==2.32.3 or >=2.30" spellcheck="false" disabled />
+              </label>
             </div>
-
-            <div class="command-group">
-              <p class="command-group-title">Run and test</p>
-              <div class="command-chips">
-                <button type="button" class="chip command-select-btn" data-command="uv run python -V" title="Run python from project environment">uv run python -V</button>
-                <button type="button" class="chip command-select-btn" data-command="uv run pytest" title="Run tests with uv-managed env">uv run pytest</button>
-                <button type="button" class="chip command-select-btn" data-command="uv pip list" title="List installed packages">uv pip list</button>
-              </div>
+            <div class="package-actions">
+              <button id="prepareAddPackageButton" class="btn btn-secondary">Prepare add command</button>
+              <button id="confirmAddPackageButton" class="btn btn-primary" hidden>Confirm and run</button>
             </div>
+            <pre id="addPackagePreview" class="package-preview" hidden></pre>
           </div>
         </details>
       </section>
 
-      <section class="actions-row">
-        <button id="parseDependenciesButton" class="btn btn-secondary">Open dependency graph</button>
-      </section>
-
-      <details class="package-card package-collapsible">
-        <summary class="package-collapsible-summary">
-          <span class="package-collapsible-title">Package adder</span>
-          <span class="package-collapsible-hint">Collapse</span>
-        </summary>
-        <div class="package-collapsible-content">
-          <label for="packageSearchInput" class="input-label">Add packages from PyPI</label>
-          <input id="packageSearchInput" type="search" placeholder="Search package names..." spellcheck="false" />
-          <p id="packageSearchStatus" class="package-search-status">Type to search PyPI packages.</p>
-          <div id="packageResults" class="package-results" aria-live="polite"></div>
-
-          <div class="package-options">
-            <label class="package-option">
-              <span>Dependency target</span>
-              <select id="dependencyTargetSelect" class="settings-select">
-                <option value="regular">Regular dependency</option>
-                <option value="dev">Dev dependency (--dev)</option>
-              </select>
-            </label>
-            <label class="package-option">
-              <span>Version mode</span>
-              <select id="versionModeSelect" class="settings-select">
-                <option value="latest">Latest</option>
-                <option value="custom">Custom specifier</option>
-              </select>
-            </label>
-            <label class="package-option">
-              <span>Version specifier</span>
-              <input id="versionSpecifierInput" type="text" placeholder="==2.32.3 or >=2.30" spellcheck="false" disabled />
-            </label>
-          </div>
-
-          <div class="package-actions">
-            <button id="prepareAddPackageButton" class="btn btn-secondary">Prepare add command</button>
-            <button id="confirmAddPackageButton" class="btn btn-primary" hidden>Confirm and run</button>
-          </div>
-          <pre id="addPackagePreview" class="package-preview" hidden></pre>
-        </div>
-      </details>
-
-      <section class="output-card">
+      <section class="content-card output-card">
         <div class="output-header">
-          <h2>Output</h2>
+          <h2>Output console</h2>
+          <button id="copyOutputButton" class="btn btn-secondary btn-copy" type="button">Copy</button>
         </div>
         <div id="output" class="output output-plain">Output from the extension will appear here.</div>
       </section>
