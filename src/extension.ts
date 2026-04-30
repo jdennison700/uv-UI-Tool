@@ -500,7 +500,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
         <button id="parseDependenciesButton" class="btn btn-secondary">Open dependency graph</button>
       </section>
 
-      <details class="package-card package-collapsible" open>
+      <details class="package-card package-collapsible">
         <summary class="package-collapsible-summary">
           <span class="package-collapsible-title">Package adder</span>
           <span class="package-collapsible-hint">Collapse</span>
