@@ -92,10 +92,17 @@ type UvDependenciesPayload = {
 };
 type UvParseResult = { payload?: UvDependenciesPayload; message: string; projectRoot?: string };
 type DependencyTarget = 'regular' | 'dev';
+type WebviewSurface = 'panel' | 'sidebar';
 type PackageAddRequest = {
   packageNames: string[];
   dependencyTarget: DependencyTarget;
   versionSpecifier?: string;
+};
+type PythonPinRequest = { version: string };
+type UvPythonVersionEntry = {
+  version: string;
+  implementation?: string;
+  variant?: string;
 };
 type PyPiSearchResult = { name: string; version?: string; summary?: string };
 type PyPiPackageIndex = { names: string[]; loadedAt: number };
@@ -221,6 +228,186 @@ function sendProjectStatus(webview: vscode.Webview) {
   detectUvProject().then(status => {
     webview.postMessage({ command: 'setProjectStatus', ...status });
   });
+}
+
+function isStablePythonVersion(version: string): boolean {
+  return /^\d+\.\d+(\.\d+)?$/u.test(version);
+}
+
+function normalizePythonPinRequest(message: unknown): { request?: PythonPinRequest; error?: string } {
+  const payload = (message && typeof message === 'object') ? message as Record<string, unknown> : undefined;
+  const version = typeof payload?.version === 'string' ? payload.version.trim() : '';
+
+  if (!version) {
+    return { error: 'Select a Python version before continuing.' };
+  }
+
+  if (!isStablePythonVersion(version)) {
+    return { error: `Unsupported Python version format: ${version}` };
+  }
+
+  return { request: { version } };
+}
+
+function comparePythonVersionsDescending(left: string, right: string): number {
+  const leftParts = left.split('.').map(part => Number.parseInt(part, 10));
+  const rightParts = right.split('.').map(part => Number.parseInt(part, 10));
+  const maxLength = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const diff = (rightParts[index] ?? 0) - (leftParts[index] ?? 0);
+    if (diff !== 0) {
+      return diff;
+    }
+  }
+
+  return 0;
+}
+
+function parseUvPythonListOutput(rawJson: string): string[] {
+  const parsed = JSON.parse(rawJson) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new Error('uv python list did not return an array.');
+  }
+
+  const versions = new Set<string>();
+  for (const item of parsed) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
+    const entry = item as UvPythonVersionEntry;
+    const implementation = entry.implementation?.toLowerCase();
+    const variant = entry.variant?.toLowerCase();
+    const version = typeof entry.version === 'string' ? entry.version.trim() : '';
+    if (!version) {
+      continue;
+    }
+
+    if (implementation !== 'cpython') {
+      continue;
+    }
+
+    if (variant !== undefined && variant !== 'default') {
+      continue;
+    }
+
+    if (!isStablePythonVersion(version)) {
+      continue;
+    }
+
+    versions.add(version);
+  }
+
+  return Array.from(versions).sort(comparePythonVersionsDescending);
+}
+
+async function readPinnedPythonVersion(projectRoot: string): Promise<string | undefined> {
+  const pythonVersionUri = vscode.Uri.joinPath(vscode.Uri.file(projectRoot), '.python-version');
+  const exists = await uriExists(pythonVersionUri);
+  if (!exists) {
+    return undefined;
+  }
+
+  const raw = await vscode.workspace.fs.readFile(pythonVersionUri);
+  const pinnedVersion = new TextDecoder('utf-8').decode(raw).split(/\r?\n/u)[0]?.trim();
+  if (!pinnedVersion || !isStablePythonVersion(pinnedVersion)) {
+    return undefined;
+  }
+
+  return pinnedVersion;
+}
+
+async function loadAvailablePythonVersions(webview: vscode.Webview) {
+  const detection = await detectUvProject();
+  if (!detection.isUvProject) {
+    webview.postMessage({ command: 'setPythonVersionOptions', versions: [], error: detection.message });
+    return;
+  }
+
+  const projectRoot = detection.projectRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!projectRoot) {
+    webview.postMessage({
+      command: 'setPythonVersionOptions',
+      versions: [],
+      error: 'Unable to determine the project root for Python version discovery.'
+    });
+    return;
+  }
+
+  await new Promise<void>(resolve => {
+    const commandProcess = spawn('uv', ['python', 'list', '--only-downloads', '--output-format', 'json'], {
+      cwd: projectRoot,
+      env: process.env,
+      windowsHide: true
+    });
+    let stdout = '';
+    let stderr = '';
+    let resolved = false;
+    const finalize = () => {
+      if (!resolved) {
+        resolved = true;
+        resolve();
+      }
+    };
+
+    commandProcess.stdout.on('data', (chunk: Buffer | string) => {
+      stdout += chunk.toString();
+    });
+
+    commandProcess.stderr.on('data', (chunk: Buffer | string) => {
+      stderr += chunk.toString();
+    });
+
+    commandProcess.on('error', error => {
+      webview.postMessage({
+        command: 'setPythonVersionOptions',
+        versions: [],
+        error: `Failed to run uv python list: ${error.message}`
+      });
+      finalize();
+    });
+
+    commandProcess.on('close', async code => {
+      if (code !== 0) {
+        const errorText = stderr.trim() || `uv python list exited with code ${code}`;
+        webview.postMessage({
+          command: 'setPythonVersionOptions',
+          versions: [],
+          error: errorText
+        });
+        finalize();
+        return;
+      }
+
+      try {
+        const versions = parseUvPythonListOutput(stdout);
+        const currentVersion = await readPinnedPythonVersion(projectRoot);
+        webview.postMessage({
+          command: 'setPythonVersionOptions',
+          versions,
+          currentVersion
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unable to parse uv python list output.';
+        webview.postMessage({
+          command: 'setPythonVersionOptions',
+          versions: [],
+          error: errorMessage
+        });
+      } finally {
+        finalize();
+      }
+    });
+  });
+}
+
+function buildUvPinArgs(request: PythonPinRequest): string[] {
+  return ['python', 'pin', request.version];
+}
+
+function buildUvPinCommandPreview(request: PythonPinRequest): string {
+  return ['uv', ...buildUvPinArgs(request)].map(escapeShellArgForDisplay).join(' ');
 }
 
 function parseDependencyNamesFromArrayBlock(block: string): string[] {
@@ -420,7 +607,7 @@ function getHtmlForDependencyGraphWebview(
 </html>`;
 }
 
-function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): string {
+function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, surface: WebviewSurface): string {
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'style.css'));
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'script.js'));
   const theme = getCurrentTheme();
@@ -433,7 +620,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
   <link rel="stylesheet" href="${styleUri}" />
   <title>UV UI Tool</title>
 </head>
-<body data-theme="${theme}">
+<body data-theme="${theme}" data-surface="${surface}">
   <div class="app-shell">
     <div class="background-glow background-glow-top"></div>
     <div class="background-glow background-glow-bottom"></div>
@@ -460,6 +647,28 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri): s
         </div>
         <div id="projectStatus" class="status">Detecting UV project...</div>
       </section>
+
+      <details class="python-version-card sidebar-only">
+        <summary class="package-collapsible-summary">
+          <span class="package-collapsible-title">Python version</span>
+          <span class="package-collapsible-hint">Collapse</span>
+        </summary>
+        <div class="package-collapsible-content">
+          <p id="pythonVersionStatus" class="package-search-status">Open a uv project to load available Python versions.</p>
+          <label class="package-option">
+            <span>Available CPython versions</span>
+            <select id="pythonVersionSelect" class="settings-select" disabled>
+              <option value="">Loading versions...</option>
+            </select>
+          </label>
+          <div class="package-actions">
+            <button id="refreshPythonVersionsButton" class="btn btn-secondary" disabled>Refresh versions</button>
+            <button id="preparePythonVersionButton" class="btn btn-secondary" disabled>Prepare python pin command</button>
+            <button id="confirmPythonVersionButton" class="btn btn-primary" hidden>Confirm and run</button>
+          </div>
+          <pre id="pythonVersionPreview" class="package-preview" hidden></pre>
+        </div>
+      </details>
 
       <section class="command-card">
         <label for="commandInput" class="input-label">Command</label>
@@ -949,38 +1158,50 @@ async function runUvAddPackage(message: unknown, webview: vscode.Webview) {
   });
 }
 
-async function runUvCommand(commandText: string, webview?: vscode.Webview) {
-  const detection = await detectUvProject();
-  if (!detection.isUvProject) {
-    vscode.window.showErrorMessage('No UV project detected in the current workspace.');
-    webview?.postMessage({ command: 'setOutput', text: detection.message });
+async function preparePythonVersionChange(message: unknown, webview: vscode.Webview) {
+  const normalized = normalizePythonPinRequest(message);
+  if (!normalized.request) {
+    webview.postMessage({ command: 'showPythonVersionConfirmation', error: normalized.error ?? 'Invalid Python version.' });
     return;
   }
 
-  if (!commandText || !commandText.trim()) {
-    vscode.window.showErrorMessage('Please provide a command to run.');
-    webview?.postMessage({ command: 'setOutput', text: 'Command was empty.' });
+  webview.postMessage({
+    command: 'showPythonVersionConfirmation',
+    commandText: buildUvPinCommandPreview(normalized.request),
+    payload: normalized.request
+  });
+}
+
+async function runUvPinPythonVersion(message: unknown, webview: vscode.Webview) {
+  const normalized = normalizePythonPinRequest(message);
+  if (!normalized.request) {
+    webview.postMessage({ command: 'showPythonVersionConfirmation', error: normalized.error ?? 'Invalid Python version.' });
+    webview.postMessage({ command: 'pythonVersionChangeFinished', success: false });
+    return;
+  }
+
+  const detection = await detectUvProject();
+  if (!detection.isUvProject) {
+    vscode.window.showErrorMessage('No UV project detected in the current workspace.');
+    webview.postMessage({ command: 'setOutput', text: detection.message });
+    webview.postMessage({ command: 'pythonVersionChangeFinished', success: false });
     return;
   }
 
   const projectRoot = detection.projectRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!projectRoot) {
-    webview?.postMessage({ command: 'setOutput', text: 'Unable to determine the project root for command execution.' });
+    webview.postMessage({ command: 'setOutput', text: 'Unable to determine the project root for command execution.' });
+    webview.postMessage({ command: 'pythonVersionChangeFinished', success: false });
     return;
   }
 
-  const shell = process.platform === 'win32'
-    ? process.env.ComSpec ?? 'cmd.exe'
-    : process.env.SHELL ?? '/bin/bash';
-  const shellArgs = process.platform === 'win32'
-    ? ['/d', '/s', '/c', commandText]
-    : ['-lc', commandText];
-
-  webview?.postMessage({ command: 'clearOutput' });
-  postAppendOutput(webview, `$ ${commandText}\n\n`, 'command');
+  const args = buildUvPinArgs(normalized.request);
+  const commandPreview = buildUvPinCommandPreview(normalized.request);
+  webview.postMessage({ command: 'clearOutput' });
+  postAppendOutput(webview, `$ ${commandPreview}\n\n`, 'command');
 
   await new Promise<void>(resolve => {
-    const commandProcess = spawn(shell, shellArgs, {
+    const commandProcess = spawn('uv', args, {
       cwd: projectRoot,
       env: process.env,
       windowsHide: true
@@ -1003,8 +1224,95 @@ async function runUvCommand(commandText: string, webview?: vscode.Webview) {
     });
 
     commandProcess.on('error', error => {
-      postAppendOutput(webview, `Failed to run command: ${error.message}\n`, 'stderr');
+      postAppendOutput(webview, `Failed to run uv python pin: ${error.message}\n`, 'stderr');
       finalize();
+    });
+
+    commandProcess.on('close', (code, signal) => {
+      if (signal) {
+        postAppendOutput(webview, `\nuv python pin terminated by signal: ${signal}\n`, 'system');
+      } else if (typeof code === 'number' && code !== 0) {
+        postAppendOutput(webview, `\nuv python pin exited with code: ${code}\n`, 'system');
+      }
+
+      webview.postMessage({ command: 'pythonVersionChangeFinished', success: code === 0, version: normalized.request?.version });
+      finalize();
+    });
+  });
+
+  sendProjectStatus(webview);
+}
+
+type ShellCommandResult = {
+  code: number | null;
+  signal: NodeJS.Signals | null;
+  stderr: string;
+};
+
+function isUvSyncCommand(commandText: string): boolean {
+  return /^uv\s+sync(?:\s+.*)?$/iu.test(commandText.trim());
+}
+
+function containsOsError5(stderrText: string): boolean {
+  return /os error 5/iu.test(stderrText);
+}
+
+async function deleteProjectVenv(projectRoot: string, webview?: vscode.Webview): Promise<boolean> {
+  const venvUri = vscode.Uri.joinPath(vscode.Uri.file(projectRoot), '.venv');
+  const hasVenv = await uriExists(venvUri);
+  if (!hasVenv) {
+    postAppendOutput(webview, 'No .venv directory found; skipping cleanup.\n', 'system');
+    return false;
+  }
+
+  try {
+    await vscode.workspace.fs.delete(venvUri, { recursive: true, useTrash: false });
+    postAppendOutput(webview, 'Deleted .venv successfully.\n', 'system');
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error deleting .venv.';
+    postAppendOutput(webview, `Failed to delete .venv: ${message}\n`, 'stderr');
+    return false;
+  }
+}
+
+async function executeShellCommand(commandText: string, projectRoot: string, webview?: vscode.Webview): Promise<ShellCommandResult> {
+  const shell = process.platform === 'win32'
+    ? process.env.ComSpec ?? 'cmd.exe'
+    : process.env.SHELL ?? '/bin/bash';
+  const shellArgs = process.platform === 'win32'
+    ? ['/d', '/s', '/c', commandText]
+    : ['-lc', commandText];
+
+  return new Promise<ShellCommandResult>(resolve => {
+    const commandProcess = spawn(shell, shellArgs, {
+      cwd: projectRoot,
+      env: process.env,
+      windowsHide: true
+    });
+
+    let stderr = '';
+    let resolved = false;
+    const finalize = (result: ShellCommandResult) => {
+      if (!resolved) {
+        resolved = true;
+        resolve(result);
+      }
+    };
+
+    commandProcess.stdout.on('data', (chunk: Buffer | string) => {
+      postAppendOutput(webview, chunk.toString(), 'stdout');
+    });
+
+    commandProcess.stderr.on('data', (chunk: Buffer | string) => {
+      const text = chunk.toString();
+      stderr += text;
+      postAppendOutput(webview, text, 'stderr');
+    });
+
+    commandProcess.on('error', error => {
+      postAppendOutput(webview, `Failed to run command: ${error.message}\n`, 'stderr');
+      finalize({ code: null, signal: null, stderr });
     });
 
     commandProcess.on('close', (code, signal) => {
@@ -1014,9 +1322,52 @@ async function runUvCommand(commandText: string, webview?: vscode.Webview) {
         postAppendOutput(webview, `\nCommand exited with code: ${code}\n`, 'system');
       }
 
-      finalize();
+      finalize({
+        code: typeof code === 'number' ? code : null,
+        signal,
+        stderr
+      });
     });
   });
+}
+
+async function runUvCommand(commandText: string, webview?: vscode.Webview) {
+  const detection = await detectUvProject();
+  if (!detection.isUvProject) {
+    vscode.window.showErrorMessage('No UV project detected in the current workspace.');
+    webview?.postMessage({ command: 'setOutput', text: detection.message });
+    return;
+  }
+
+  if (!commandText || !commandText.trim()) {
+    vscode.window.showErrorMessage('Please provide a command to run.');
+    webview?.postMessage({ command: 'setOutput', text: 'Command was empty.' });
+    return;
+  }
+
+  const projectRoot = detection.projectRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!projectRoot) {
+    webview?.postMessage({ command: 'setOutput', text: 'Unable to determine the project root for command execution.' });
+    return;
+  }
+
+  webview?.postMessage({ command: 'clearOutput' });
+  postAppendOutput(webview, `$ ${commandText}\n\n`, 'command');
+  let result = await executeShellCommand(commandText, projectRoot, webview);
+
+  const shouldApplyWindowsSyncFallback = process.platform === 'win32'
+    && isUvSyncCommand(commandText)
+    && result.code !== 0
+    && containsOsError5(result.stderr);
+
+  if (shouldApplyWindowsSyncFallback) {
+    postAppendOutput(webview, '\nDetected os error 5 during uv sync. Attempting cleanup workaround (.venv delete + retry).\n', 'system');
+    const deleted = await deleteProjectVenv(projectRoot, webview);
+    if (deleted) {
+      postAppendOutput(webview, `\n$ ${commandText}\n\n`, 'command');
+      result = await executeShellCommand(commandText, projectRoot, webview);
+    }
+  }
 
   webview?.postMessage({ command: 'commandFinished' });
 }
@@ -1044,6 +1395,15 @@ async function handleWebviewMessage(message: Record<string, unknown>, webview: v
       break;
     case 'addPackage':
       await runUvAddPackage(message, webview);
+      break;
+    case 'loadPythonVersions':
+      await loadAvailablePythonVersions(webview);
+      break;
+    case 'preparePythonVersionChange':
+      await preparePythonVersionChange(message, webview);
+      break;
+    case 'changePythonVersion':
+      await runUvPinPythonVersion(message, webview);
       break;
   }
 }
@@ -1088,7 +1448,7 @@ class UVPanel {
   }
 
   private update() {
-    this.panel.webview.html = getHtmlForWebview(this.panel.webview, this.extensionUri);
+    this.panel.webview.html = getHtmlForWebview(this.panel.webview, this.extensionUri, 'panel');
     sendTheme(this.panel.webview);
     sendProjectStatus(this.panel.webview);
   }
@@ -1178,7 +1538,7 @@ class UVSidebarProvider implements vscode.WebviewViewProvider {
 
     this.currentWebview = webviewView.webview;
 
-    webviewView.webview.html = getHtmlForWebview(webviewView.webview, this.extensionUri);
+    webviewView.webview.html = getHtmlForWebview(webviewView.webview, this.extensionUri, 'sidebar');
     this.setWebviewMessageListener(webviewView.webview);
     sendTheme(webviewView.webview);
     sendProjectStatus(webviewView.webview);
