@@ -31,6 +31,14 @@ Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run:
 
 That opens a webview panel with a starting UI where you can extend the button to execute `uv` commands.
 
+The sidebar/panel also includes a visual **Add package from PyPI** flow for uv projects:
+
+- Search PyPI packages as you type
+- Select multiple packages and run one `uv add` command
+- Choose regular or dev dependency target
+- Optionally set a version specifier
+- Confirm the exact `uv add` command before execution
+
 ## Next steps
 
 - Add a command list and input field to the webview
