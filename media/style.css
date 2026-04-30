@@ -614,7 +614,79 @@ h2 {
   color: var(--text-muted);
 }
 
-body[data-theme='matte-black'] {
+body[data-theme='light'] {
+  --bg: #f4f8fc;
+  --bg-elevated: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-glass: rgba(255, 255, 255, 0.78);
+  --text: #1f2d3a;
+  --text-muted: #5d7286;
+  --accent: #1ea8d0;
+  --accent-soft: rgba(30, 168, 208, 0.18);
+  background: radial-gradient(circle at 0% 0%, #e8f4ff 0%, transparent 42%), var(--bg);
+}
+
+body[data-theme='light'] .tool-sidebar,
+body[data-theme='light'] .status-bar,
+body[data-theme='light'] .python-version-card,
+body[data-theme='light'] .package-collapsible,
+body[data-theme='light'] .command-library,
+body[data-theme='light'] .package-result,
+body[data-theme='light'] .package-preview,
+body[data-theme='light'] .output,
+body[data-theme='light'] .deps-stat,
+body[data-theme='light'] .deps-item {
+  background: #ffffff;
+  border-color: rgba(62, 101, 136, 0.22);
+  color: #1f2d3a;
+}
+
+body[data-theme='light'] .status-header,
+body[data-theme='light'] .content-card,
+body[data-theme='light'] .settings-menu {
+  background: #ffffff;
+}
+
+body[data-theme='light'] .sidebar-nav-btn,
+body[data-theme='light'] .btn-secondary,
+body[data-theme='light'] .deps-control,
+body[data-theme='light'] .icon-btn {
+  background: #f4f8fc;
+  color: #1f2d3a;
+  border-color: rgba(62, 101, 136, 0.22);
+}
+
+body[data-theme='light'] input,
+body[data-theme='light'] .settings-select,
+body[data-theme='light'] #commandInput {
+  background: #ffffff;
+  color: #1f2d3a;
+  border-color: rgba(62, 101, 136, 0.26);
+}
+
+body[data-theme='light'] .chip {
+  background: rgba(255, 255, 255, 0.9);
+  color: #1f2d3a;
+  border-color: rgba(62, 101, 136, 0.24);
+}
+
+body[data-theme='light'] .output {
+  background: #f7fbff;
+}
+
+body[data-theme='light'] .terminal-stdout {
+  color: #1f2d3a;
+}
+
+body[data-theme='light'] .terminal-command {
+  color: #0b7c9d;
+}
+
+body[data-theme='light'] .terminal-system {
+  color: #9a6a10;
+}
+
+body[data-theme='dark'] {
   --bg: #090d12;
   --bg-elevated: #0f151d;
   --bg-panel: #131a23;

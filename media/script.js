@@ -37,13 +37,28 @@ let isUvProject = false;
 let pendingAddPayload;
 let pendingPythonVersionPayload;
 const isSidebarSurface = document.body?.getAttribute('data-surface') === 'sidebar';
+const supportedThemes = new Set(['light', 'dark']);
+const collapsibleDetails = document.querySelectorAll('details');
 
 const applyTheme = theme => {
-  const resolvedTheme = theme === 'matte-black' ? 'matte-black' : 'sunset';
+  const resolvedTheme = theme === 'light' ? 'light' : 'dark';
   document.body?.setAttribute('data-theme', resolvedTheme);
   if (themeSelect && themeSelect.value !== resolvedTheme) {
     themeSelect.value = resolvedTheme;
   }
+};
+
+const updatePaneArrow = detailsElement => {
+  if (!detailsElement) {
+    return;
+  }
+
+  const arrow = detailsElement.querySelector('.package-collapsible-hint, .command-library-hint');
+  if (!arrow) {
+    return;
+  }
+
+  arrow.textContent = detailsElement.open ? '▾' : '▸';
 };
 
 const appendTerminalChunk = (text, stream = 'stdout') => {
@@ -620,7 +635,7 @@ document.addEventListener('click', event => {
 });
 
 themeSelect?.addEventListener('change', () => {
-  const selectedTheme = themeSelect.value === 'matte-black' ? 'matte-black' : 'sunset';
+  const selectedTheme = supportedThemes.has(themeSelect.value) ? themeSelect.value : 'dark';
   applyTheme(selectedTheme);
   vscode.postMessage({
     command: 'setTheme',
@@ -896,3 +911,10 @@ window.addEventListener('message', event => {
 if (appSidebar) {
   setSidebarCollapsed(isSidebarSurface);
 }
+
+collapsibleDetails.forEach(detailsElement => {
+  updatePaneArrow(detailsElement);
+  detailsElement.addEventListener('toggle', () => {
+    updatePaneArrow(detailsElement);
+  });
+});

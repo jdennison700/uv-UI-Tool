@@ -4,13 +4,21 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import * as vscode from 'vscode';
 
-type ThemeName = 'sunset' | 'matte-black';
+type ThemeName = 'light' | 'dark';
 const THEME_KEY = 'uv-ui-tool.theme';
 let extensionContextRef: vscode.ExtensionContext | undefined;
 let sidebarProviderRef: UVSidebarProvider | undefined;
 
 function normalizeThemeName(value: unknown): ThemeName {
-  return value === 'matte-black' ? 'matte-black' : 'sunset';
+  if (value === 'light') {
+    return 'light';
+  }
+
+  if (value === 'dark' || value === 'matte-black') {
+    return 'dark';
+  }
+
+  return 'dark';
 }
 
 function getCurrentTheme(): ThemeName {
@@ -648,8 +656,8 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
           <div id="settingsMenu" class="settings-menu" hidden>
             <label for="themeSelect" class="settings-label">Theme</label>
             <select id="themeSelect" class="settings-select">
-              <option value="sunset">Sunset</option>
-              <option value="matte-black">Matte Black</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
             </select>
           </div>
         </div>
@@ -664,7 +672,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
         <details class="python-version-card" open>
           <summary class="package-collapsible-summary">
             <span class="package-collapsible-title">Python version</span>
-            <span class="package-collapsible-hint">Collapse</span>
+            <span class="package-collapsible-hint" aria-hidden="true">▾</span>
           </summary>
           <div class="package-collapsible-content">
             <p id="pythonVersionStatus" class="package-search-status">Open a uv project to load available Python versions.</p>
@@ -697,7 +705,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
           <details class="command-library" aria-label="Command menu">
             <summary class="command-library-summary">
               <span class="command-library-title">More commands</span>
-              <span class="command-library-hint">Expand</span>
+              <span class="command-library-hint" aria-hidden="true">▸</span>
             </summary>
             <div class="command-library-content">
               <div class="command-group">
@@ -749,10 +757,6 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
                     <span class="command-entry-name">uv remove &lt;package&gt;</span>
                     <span class="command-entry-desc">Remove a dependency from the project.</span>
                   </button>
-                  <button type="button" class="command-entry command-select-btn" data-command="uv python pin 3.12" title="Pin project Python version">
-                    <span class="command-entry-name">uv python pin &lt;version&gt;</span>
-                    <span class="command-entry-desc">Pin the project Python version in .python-version.</span>
-                  </button>
                 </div>
               </div>
             </div>
@@ -769,7 +773,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
         <details class="package-card package-collapsible">
           <summary class="package-collapsible-summary">
             <span class="package-collapsible-title">Package adder</span>
-            <span class="package-collapsible-hint">Collapse</span>
+            <span class="package-collapsible-hint" aria-hidden="true">▸</span>
           </summary>
           <div class="package-collapsible-content">
             <label for="packageSearchInput" class="input-label">Add packages from PyPI</label>
