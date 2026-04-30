@@ -53,7 +53,7 @@ const refreshPalette = () => {
 };
 
 const applyTheme = theme => {
-  const resolvedTheme = theme === 'matte-black' ? 'matte-black' : 'sunset';
+  const resolvedTheme = theme === 'light' ? 'light' : 'dark';
   document.body?.setAttribute('data-theme', resolvedTheme);
   refreshPalette();
   draw();
