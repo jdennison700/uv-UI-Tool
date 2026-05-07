@@ -810,7 +810,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
           <div class="package-collapsible-content">
             <label for="packageSearchInput" class="input-label">Add packages from PyPI</label>
             <input id="packageSearchInput" type="search" placeholder="Search package names..." spellcheck="false" />
-            <p id="packageSearchStatus" class="package-search-status">Type to search PyPI packages.</p>
+            <p id="packageSearchStatus" class="package-search-status">No packages selected. Type to search PyPI packages.</p>
             <div id="packageResults" class="package-results" aria-live="polite"></div>
             <div class="package-options">
               <label class="package-option">

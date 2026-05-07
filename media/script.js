@@ -261,6 +261,21 @@ const setBusy = (button, isBusy, busyLabel) => {
   button.textContent = button.dataset.defaultText;
 };
 
+const updatePackageSearchStatus = (message) => {
+  if (!packageSearchStatus) {
+    return;
+  }
+
+  const selectedCount = selectedPackageNames.size;
+  const selectionText = selectedCount > 0
+    ? `${selectedCount} package${selectedCount === 1 ? '' : 's'} selected.`
+    : 'No packages selected.';
+
+  packageSearchStatus.textContent = message
+    ? `${selectionText} ${message}`
+    : selectionText;
+};
+
 const clearPackageConfirmation = () => {
   pendingAddPayload = undefined;
   if (addPackagePreview) {
@@ -276,9 +291,7 @@ const clearPackageConfirmation = () => {
 const clearPackageSelection = () => {
   selectedPackageNames.clear();
   clearPackageConfirmation();
-  if (packageSearchStatus) {
-    packageSearchStatus.textContent = 'Package selection cleared.';
-  }
+  updatePackageSearchStatus('Package selection cleared.');
   if (packageResults) {
     renderPackageResults(currentPackageSearchResults);
   }
@@ -409,9 +422,9 @@ const renderPackageResults = results => {
       renderPackageResults(results);
       if (packageSearchStatus) {
         const selectedCount = selectedPackageNames.size;
-        packageSearchStatus.textContent = selectedCount > 0
-          ? `${selectedCount} package${selectedCount === 1 ? '' : 's'} selected.`
-          : 'Selection cleared. Keep searching to select packages.';
+        updatePackageSearchStatus(selectedCount > 0
+          ? 'Selection updated. Continue selecting or prepare the add command.'
+          : 'Selection cleared. Keep searching to select packages.');
       }
     });
 
@@ -449,9 +462,7 @@ const queuePackageSearch = () => {
   const query = packageSearchInput?.value?.trim() ?? '';
 
   if (!query) {
-    if (packageSearchStatus) {
-      packageSearchStatus.textContent = 'Type to search PyPI packages.';
-    }
+    updatePackageSearchStatus('Type to search PyPI packages.');
     renderPackageResults([]);
     return;
   }
@@ -459,9 +470,7 @@ const queuePackageSearch = () => {
   searchDebounceHandle = setTimeout(() => {
     latestSearchRequestId += 1;
     const requestId = latestSearchRequestId;
-    if (packageSearchStatus) {
-      packageSearchStatus.textContent = 'Searching PyPI...';
-    }
+    updatePackageSearchStatus('Searching PyPI...');
     vscode.postMessage({
       command: 'searchPyPiPackages',
       query,
@@ -476,16 +485,12 @@ const prepareAddPackage = () => {
   const versionSpecifier = getVersionSpecifier();
 
   if (packageNames.length === 0) {
-    if (packageSearchStatus) {
-      packageSearchStatus.textContent = 'Select one or more packages before preparing the command.';
-    }
+    updatePackageSearchStatus('Select one or more packages before preparing the command.');
     return;
   }
 
   if (versionModeSelect?.value === 'custom' && !versionSpecifier) {
-    if (packageSearchStatus) {
-      packageSearchStatus.textContent = 'Enter a version specifier (for example: ==2.32.3 or >=1.2).';
-    }
+    updatePackageSearchStatus('Enter a version specifier (for example: ==2.32.3 or >=1.2).');
     return;
   }
 
@@ -716,35 +721,23 @@ window.addEventListener('message', event => {
 
     if (message.error) {
       renderPackageResults([]);
-      if (packageSearchStatus) {
-        packageSearchStatus.textContent = message.error;
-      }
+      updatePackageSearchStatus(message.error);
       return;
     }
 
     renderPackageResults(message.results);
     const resultsCount = Array.isArray(message.results) ? message.results.length : 0;
     const selectedCount = selectedPackageNames.size;
-    if (packageSearchStatus) {
-      if (resultsCount === 0) {
-        packageSearchStatus.textContent = selectedCount > 0
-          ? `No matches. ${selectedCount} package${selectedCount === 1 ? '' : 's'} selected.`
-          : 'No packages found for this query.';
-      } else {
-        packageSearchStatus.textContent = selectedCount > 0
-          ? `Found ${resultsCount} packages. ${selectedCount} selected.`
-          : `Found ${resultsCount} package${resultsCount === 1 ? '' : 's'}. Select packages to continue.`;
-      }
-    }
+    updatePackageSearchStatus(resultsCount === 0
+      ? (selectedCount > 0 ? 'No matches.' : 'No packages found for this query.')
+      : `Found ${resultsCount} package${resultsCount === 1 ? '' : 's'}. ${selectedCount > 0 ? 'Continue selecting or prepare the add command.' : 'Select packages to continue.'}`);
   }
 
   if (message.command === 'showAddPackageConfirmation') {
     setBusy(prepareAddPackageButton, false, 'Preparing...');
     if (message.error) {
       clearPackageConfirmation();
-      if (packageSearchStatus) {
-        packageSearchStatus.textContent = message.error;
-      }
+      updatePackageSearchStatus(message.error);
       return;
     }
 
@@ -757,9 +750,7 @@ window.addEventListener('message', event => {
       confirmAddPackageButton.hidden = false;
       confirmAddPackageButton.disabled = false;
     }
-    if (packageSearchStatus) {
-      packageSearchStatus.textContent = 'Review the command, then confirm to run uv add.';
-    }
+    updatePackageSearchStatus('Review the command, then confirm to run uv add.');
   }
 
   if (message.command === 'packageAddFinished') {
@@ -769,9 +760,9 @@ window.addEventListener('message', event => {
     }
 
     clearPackageConfirmation();
-    if (packageSearchStatus) {
-      packageSearchStatus.textContent = 'Packages added successfully.';
-    }
+    selectedPackageNames.clear();
+    renderPackageResults(currentPackageSearchResults);
+    updatePackageSearchStatus('Packages added successfully.');
   }
 
   if (message.command === 'hideCreateProjectPrompt') {
@@ -924,7 +915,7 @@ window.addEventListener('message', event => {
         pythonVersionStatus.textContent = 'Open a uv project to load available Python versions.';
       }
     } else if (packageSearchStatus && !packageSearchInput?.value.trim()) {
-      packageSearchStatus.textContent = 'Type to search PyPI packages.';
+      updatePackageSearchStatus('Type to search PyPI packages.');
       loadPythonVersions();
     } else {
       loadPythonVersions();
