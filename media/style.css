@@ -225,6 +225,19 @@ input:focus,
   margin-bottom: 0.8rem;
 }
 
+.project-creation-callout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(156, 178, 197, 0.16);
+  background: #0e1720;
+  color: var(--text);
+  margin-bottom: 0.8rem;
+}
+
 .status-text {
   font-size: 0.8rem;
   color: #c6d5e1;
@@ -645,6 +658,12 @@ body[data-theme='light'] .status-header,
 body[data-theme='light'] .content-card,
 body[data-theme='light'] .settings-menu {
   background: #ffffff;
+}
+
+body[data-theme='light'] .project-creation-callout {
+  background: #f4f8fc;
+  border-color: rgba(62, 101, 136, 0.22);
+  color: #1f2d3a;
 }
 
 body[data-theme='light'] .sidebar-nav-btn,
