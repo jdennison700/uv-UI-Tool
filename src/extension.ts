@@ -834,6 +834,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
             </div>
             <div class="package-actions">
               <button id="prepareAddPackageButton" class="btn btn-secondary">Prepare add command</button>
+              <button id="clearPackageSelectionButton" class="btn btn-secondary">Clear selection</button>
               <button id="confirmAddPackageButton" class="btn btn-primary" hidden>Confirm and run</button>
             </div>
             <pre id="addPackagePreview" class="package-preview" hidden></pre>
