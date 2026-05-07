@@ -769,6 +769,8 @@ window.addEventListener('message', event => {
     }
 
     clearPackageConfirmation();
+    selectedPackageNames.clear();
+    renderPackageResults(currentPackageSearchResults);
     if (packageSearchStatus) {
       packageSearchStatus.textContent = 'Packages added successfully.';
     }
