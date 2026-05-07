@@ -455,11 +455,10 @@ const queuePackageSearch = () => {
 
 const prepareAddPackage = () => {
   const packageNames = getSelectedPackageNames();
-  const fallbackPackageName = packageSearchInput?.value?.trim();
   const dependencyTarget = dependencyTargetSelect?.value === 'dev' ? 'dev' : 'regular';
   const versionSpecifier = getVersionSpecifier();
 
-  if (packageNames.length === 0 && !fallbackPackageName) {
+  if (packageNames.length === 0) {
     if (packageSearchStatus) {
       packageSearchStatus.textContent = 'Select one or more packages before preparing the command.';
     }
@@ -477,7 +476,6 @@ const prepareAddPackage = () => {
   vscode.postMessage({
     command: 'prepareAddPackageCommand',
     packageNames,
-    packageName: fallbackPackageName,
     dependencyTarget,
     versionSpecifier
   });

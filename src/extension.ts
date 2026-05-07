@@ -1109,17 +1109,14 @@ function searchPyPiPackageIndex(names: string[], query: string): PyPiSearchResul
 
 function normalizePackageAddRequest(message: unknown): { request?: PackageAddRequest; error?: string } {
   const payload = (message && typeof message === 'object') ? message as Record<string, unknown> : undefined;
-  const namesFromArray = Array.isArray(payload?.packageNames)
-    ? payload.packageNames
-      .filter((value): value is string => typeof value === 'string')
-      .map(value => value.trim())
-      .filter(Boolean)
+  const packageNames = Array.isArray(payload?.packageNames)
+    ? Array.from(new Set(
+      payload.packageNames
+        .filter((value): value is string => typeof value === 'string')
+        .map(value => value.trim())
+        .filter(Boolean)
+    ))
     : [];
-  const singlePackageName = typeof payload?.packageName === 'string' ? payload.packageName.trim() : '';
-  const packageNames = Array.from(new Set([
-    ...namesFromArray,
-    ...(singlePackageName ? [singlePackageName] : [])
-  ]));
 
   if (packageNames.length === 0) {
     return { error: 'Please select one or more packages before continuing.' };
