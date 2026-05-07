@@ -23,6 +23,7 @@ const dependencyTargetSelect = document.getElementById('dependencyTargetSelect')
 const versionModeSelect = document.getElementById('versionModeSelect');
 const versionSpecifierInput = document.getElementById('versionSpecifierInput');
 const prepareAddPackageButton = document.getElementById('prepareAddPackageButton');
+const clearPackageSelectionButton = document.getElementById('clearPackageSelectionButton');
 const confirmAddPackageButton = document.getElementById('confirmAddPackageButton');
 const addPackagePreview = document.getElementById('addPackagePreview');
 const pythonVersionStatus = document.getElementById('pythonVersionStatus');
@@ -35,6 +36,7 @@ const pythonVersionPreview = document.getElementById('pythonVersionPreview');
 let searchDebounceHandle;
 let latestSearchRequestId = 0;
 const selectedPackageNames = new Set();
+let currentPackageSearchResults = [];
 let isUvProject = false;
 let pendingAddPayload;
 let pendingPythonVersionPayload;
@@ -271,6 +273,17 @@ const clearPackageConfirmation = () => {
   }
 };
 
+const clearPackageSelection = () => {
+  selectedPackageNames.clear();
+  clearPackageConfirmation();
+  if (packageSearchStatus) {
+    packageSearchStatus.textContent = 'Package selection cleared.';
+  }
+  if (packageResults) {
+    renderPackageResults(currentPackageSearchResults);
+  }
+};
+
 const clearPythonVersionConfirmation = () => {
   pendingPythonVersionPayload = undefined;
   if (pythonVersionPreview) {
@@ -353,11 +366,15 @@ const getVersionSpecifier = () => {
 };
 
 const renderPackageResults = results => {
+  currentPackageSearchResults = Array.isArray(results) ? results : [];
   if (!packageResults) {
     return;
   }
 
   packageResults.innerHTML = '';
+  if (clearPackageSelectionButton) {
+    clearPackageSelectionButton.disabled = selectedPackageNames.size === 0;
+  }
 
   if (!Array.isArray(results) || results.length === 0) {
     return;
@@ -455,11 +472,10 @@ const queuePackageSearch = () => {
 
 const prepareAddPackage = () => {
   const packageNames = getSelectedPackageNames();
-  const fallbackPackageName = packageSearchInput?.value?.trim();
   const dependencyTarget = dependencyTargetSelect?.value === 'dev' ? 'dev' : 'regular';
   const versionSpecifier = getVersionSpecifier();
 
-  if (packageNames.length === 0 && !fallbackPackageName) {
+  if (packageNames.length === 0) {
     if (packageSearchStatus) {
       packageSearchStatus.textContent = 'Select one or more packages before preparing the command.';
     }
@@ -477,7 +493,6 @@ const prepareAddPackage = () => {
   vscode.postMessage({
     command: 'prepareAddPackageCommand',
     packageNames,
-    packageName: fallbackPackageName,
     dependencyTarget,
     versionSpecifier
   });
@@ -540,6 +555,10 @@ versionSpecifierInput?.addEventListener('input', () => {
 
 prepareAddPackageButton?.addEventListener('click', () => {
   prepareAddPackage();
+});
+
+clearPackageSelectionButton?.addEventListener('click', () => {
+  clearPackageSelection();
 });
 
 confirmAddPackageButton?.addEventListener('click', () => {
@@ -872,6 +891,10 @@ window.addEventListener('message', event => {
     if (prepareAddPackageButton) {
       prepareAddPackageButton.disabled = !isUvProject;
       setBusy(prepareAddPackageButton, false, 'Preparing...');
+    }
+
+    if (clearPackageSelectionButton) {
+      clearPackageSelectionButton.disabled = !isUvProject || selectedPackageNames.size === 0;
     }
 
     if (pythonVersionSelect) {
