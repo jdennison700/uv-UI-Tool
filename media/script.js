@@ -14,6 +14,8 @@ const commandSelectButtons = document.querySelectorAll('.command-select-btn[data
 const openSettingsButton = document.getElementById('openSettingsButton');
 const settingsMenu = document.getElementById('settingsMenu');
 const themeSelect = document.getElementById('themeSelect');
+const projectCreationPrompt = document.getElementById('projectCreationPrompt');
+const createProjectButton = document.getElementById('createProjectButton');
 const packageSearchInput = document.getElementById('packageSearchInput');
 const packageSearchStatus = document.getElementById('packageSearchStatus');
 const packageResults = document.getElementById('packageResults');
@@ -643,6 +645,15 @@ themeSelect?.addEventListener('change', () => {
   });
 });
 
+createProjectButton?.addEventListener('click', () => {
+  vscode.postMessage({ command: 'createUvProject' });
+});
+
+if (projectCreationPrompt) {
+  projectCreationPrompt.hidden = true;
+  projectCreationPrompt.style.display = 'none';
+}
+
 window.addEventListener('message', event => {
   const message = event.data;
 
@@ -744,6 +755,13 @@ window.addEventListener('message', event => {
     }
   }
 
+  if (message.command === 'hideCreateProjectPrompt') {
+    if (projectCreationPrompt) {
+      projectCreationPrompt.hidden = true;
+      projectCreationPrompt.style.display = 'none';
+    }
+  }
+
   if (message.command === 'setPythonVersionOptions') {
     setBusy(refreshPythonVersionsButton, false, 'Refreshing...');
     if (!isUvProject) {
@@ -824,18 +842,9 @@ window.addEventListener('message', event => {
       connectionIndicator.classList.toggle('connected', isUvProject);
       connectionIndicator.classList.toggle('disconnected', !isUvProject);
     }
-    if (runButton) {
-      runButton.disabled = !isUvProject;
-      setBusy(runButton, false, 'Running...');
-    }
-
-    if (parseDependenciesButton) {
-      parseDependenciesButton.disabled = !isUvProject;
-      setBusy(parseDependenciesButton, false, 'Parsing...');
-    }
-
-    if (commandInput) {
-      commandInput.disabled = !isUvProject;
+    if (projectCreationPrompt) {
+      projectCreationPrompt.hidden = isUvProject;
+      projectCreationPrompt.style.display = isUvProject ? 'none' : '';
     }
 
     if (packageSearchInput) {

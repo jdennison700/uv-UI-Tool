@@ -410,6 +410,33 @@ async function loadAvailablePythonVersions(webview: vscode.Webview) {
   });
 }
 
+async function createUvProject(webview: vscode.Webview) {
+  const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+  if (workspaceFolders.length === 0) {
+    webview.postMessage({ command: 'setOutput', text: 'No workspace folder is open. Open a folder and try again.', stream: 'system' });
+    return;
+  }
+
+  const projectRoot = workspaceFolders[0].uri.fsPath;
+  const uvTomlUri = vscode.Uri.joinPath(vscode.Uri.file(projectRoot), 'uv.toml');
+  const alreadyExists = await uriExists(uvTomlUri);
+  if (alreadyExists) {
+    webview.postMessage({ command: 'setOutput', text: 'A UV project is already present in this workspace.', stream: 'system' });
+    sendProjectStatus(webview);
+    return;
+  }
+
+  postAppendOutput(webview, 'Running uv init in the workspace root...\n', 'system');
+  const result = await executeShellCommand('uv init', projectRoot, webview);
+  if (result.code === 0) {
+    postAppendOutput(webview, 'UV project initialized successfully.\n', 'system');
+    webview.postMessage({ command: 'hideCreateProjectPrompt' });
+    sendProjectStatus(webview);
+  } else {
+    postAppendOutput(webview, `uv init failed with code ${result.code ?? 'unknown'}.\n`, 'stderr');
+  }
+}
+
 function buildUvPinArgs(request: PythonPinRequest): string[] {
   return ['python', 'pin', request.version];
 }
@@ -668,6 +695,11 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
           <span class="status-label">Workspace status</span>
           <span id="projectStatus" class="status-text">Detecting UV project...</span>
         </section>
+
+        <div id="projectCreationPrompt" class="project-creation-callout" hidden>
+          <span>No UV project detected. Create a UV project to continue.</span>
+          <button id="createProjectButton" type="button" class="btn btn-secondary">Create UV project</button>
+        </div>
 
         <details class="python-version-card" open>
           <summary class="package-collapsible-summary">
@@ -1437,6 +1469,9 @@ async function handleWebviewMessage(message: Record<string, unknown>, webview: v
   switch (message.command) {
     case 'runUvCommand':
       await runUvCommand(typeof message.text === 'string' ? message.text : '', webview);
+      break;
+    case 'createUvProject':
+      await createUvProject(webview);
       break;
     case 'parseDependencies':
       await parseAndSendUvLockDependencies(webview, extensionUri);
