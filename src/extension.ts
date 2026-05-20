@@ -729,19 +729,17 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
             <input id="commandInput" type="text" placeholder="Type a uv command (for example: uv sync)" spellcheck="false" />
             <button id="runButton" class="btn btn-primary">Run</button>
           </div>
-          <div class="quick-actions sidebar-quick-actions">
-            <button type="button" class="chip command-select-btn" data-command="uv sync" title="Sync environment with lockfile">uv sync</button>
-            <button type="button" class="chip command-select-btn" data-command="uv run python -V" title="Run python from project environment">python -V</button>
-            <button type="button" class="chip command-select-btn" data-command="uv run pytest" title="Run tests with uv-managed env">run tests</button>
-          </div>
           <details class="command-library" aria-label="Command menu">
             <summary class="command-library-summary">
-              <span class="command-library-title">More commands</span>
+              <span class="command-library-title">Command list</span>
               <span class="command-library-hint" aria-hidden="true">▸</span>
             </summary>
             <div class="command-library-content">
-              <div class="command-group">
-                <p class="command-group-title">Environment and sync</p>
+              <details class="command-group">
+                <summary class="command-group-summary">
+                  <span class="command-group-title">Dependencies and lock</span>
+                  <span class="command-library-hint" aria-hidden="true">▸</span>
+                </summary>
                 <div class="command-catalog">
                   <button type="button" class="command-entry command-select-btn" data-command="uv sync" title="Sync environment with lockfile">
                     <span class="command-entry-name">uv sync</span>
@@ -751,46 +749,60 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
                     <span class="command-entry-name">uv lock</span>
                     <span class="command-entry-desc">Resolve dependencies and regenerate uv.lock.</span>
                   </button>
-                  <button type="button" class="command-entry command-select-btn" data-command="uv tree" title="Show dependency tree">
-                    <span class="command-entry-name">uv tree</span>
-                    <span class="command-entry-desc">Print the installed dependency tree.</span>
-                  </button>
-                  <button type="button" class="command-entry command-select-btn" data-command="uv --version" title="Show uv version">
-                    <span class="command-entry-name">uv --version</span>
-                    <span class="command-entry-desc">Show the installed uv CLI version.</span>
+                  <button type="button" class="command-entry command-select-btn" data-command="uv remove" title="Remove a dependency">
+                    <span class="command-entry-name">uv remove</span>
+                    <span class="command-entry-desc">Remove a dependency from the project (append the package name).</span>
                   </button>
                 </div>
-              </div>
-              <div class="command-group">
-                <p class="command-group-title">Run and inspect</p>
+              </details>
+              <details class="command-group">
+                <summary class="command-group-summary">
+                  <span class="command-group-title">Run and tools</span>
+                  <span class="command-library-hint" aria-hidden="true">▸</span>
+                </summary>
                 <div class="command-catalog">
-                  <button type="button" class="command-entry command-select-btn" data-command="uv run pytest" title="Run tests with project environment">
-                    <span class="command-entry-name">uv run pytest</span>
-                    <span class="command-entry-desc">Run tests using the uv-managed environment.</span>
+                  <button type="button" class="command-entry command-select-btn" data-command="uv run" title="Run a command">
+                    <span class="command-entry-name">uv run</span>
+                    <span class="command-entry-desc">Run a command inside the project environment (append the command).</span>
                   </button>
-                  <button type="button" class="command-entry command-select-btn" data-command="uv run python -V" title="Show project Python version">
-                    <span class="command-entry-name">uv run python -V</span>
-                    <span class="command-entry-desc">Show the Python version from the project environment.</span>
-                  </button>
-                  <button type="button" class="command-entry command-select-btn" data-command="uv pip list" title="List installed packages">
-                    <span class="command-entry-name">uv pip list</span>
-                    <span class="command-entry-desc">List currently installed packages.</span>
-                  </button>
-                  <button type="button" class="command-entry command-select-btn" data-command="uv python list --only-downloads" title="List available Python versions">
-                    <span class="command-entry-name">uv python list --only-downloads</span>
-                    <span class="command-entry-desc">Show downloadable Python versions from uv.</span>
+                  <button type="button" class="command-entry command-select-btn" data-command="uv tool upgrade" title="Upgrade a uv tool">
+                    <span class="command-entry-name">uv tool upgrade</span>
+                    <span class="command-entry-desc">Upgrade a tool installed via uv (append the tool name).</span>
                   </button>
                 </div>
-              </div>
-              <div class="command-group">
-                <p class="command-group-title">Project maintenance</p>
+              </details>
+              <details class="command-group">
+                <summary class="command-group-summary">
+                  <span class="command-group-title">Pip workflows</span>
+                  <span class="command-library-hint" aria-hidden="true">▸</span>
+                </summary>
                 <div class="command-catalog">
-                  <button type="button" class="command-entry command-select-btn" data-command="uv remove requests" title="Remove package dependency">
-                    <span class="command-entry-name">uv remove &lt;package&gt;</span>
-                    <span class="command-entry-desc">Remove a dependency from the project.</span>
+                  <button type="button" class="command-entry command-select-btn" data-command="uv pip compile" title="Compile requirements">
+                    <span class="command-entry-name">uv pip compile</span>
+                    <span class="command-entry-desc">Compile requirements from input files into a lock-style output.</span>
+                  </button>
+                  <button type="button" class="command-entry command-select-btn" data-command="uv pip sync" title="Sync from requirements">
+                    <span class="command-entry-name">uv pip sync</span>
+                    <span class="command-entry-desc">Sync the environment to match a requirements.txt file.</span>
                   </button>
                 </div>
-              </div>
+              </details>
+              <details class="command-group">
+                <summary class="command-group-summary">
+                  <span class="command-group-title">Maintenance</span>
+                  <span class="command-library-hint" aria-hidden="true">▸</span>
+                </summary>
+                <div class="command-catalog">
+                  <button type="button" class="command-entry command-select-btn" data-command="uv cache clean" title="Clear uv cache">
+                    <span class="command-entry-name">uv cache clean</span>
+                    <span class="command-entry-desc">Clear cached downloads and build artifacts.</span>
+                  </button>
+                  <button type="button" class="command-entry command-select-btn" data-command="uv self update" title="Update uv">
+                    <span class="command-entry-name">uv self update</span>
+                    <span class="command-entry-desc">Update uv itself to the latest release.</span>
+                  </button>
+                </div>
+              </details>
             </div>
           </details>
         </section>

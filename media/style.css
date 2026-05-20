@@ -291,6 +291,32 @@ input:focus,
   gap: 0.6rem;
 }
 
+.command-group {
+  border-radius: 9px;
+  border: 1px solid rgba(156, 178, 197, 0.18);
+  background: rgba(12, 18, 25, 0.6);
+  overflow: clip;
+}
+
+.command-group-summary {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.48rem 0.62rem;
+  cursor: pointer;
+}
+
+.command-group-summary::-webkit-details-marker {
+  display: none;
+}
+
+.command-group .command-catalog {
+  border-top: 1px solid rgba(156, 178, 197, 0.12);
+  padding: 0.55rem 0.6rem 0.65rem;
+}
+
 .command-catalog {
   display: grid;
   gap: 0.42rem;
