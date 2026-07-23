@@ -49,7 +49,6 @@ Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run:
 - `UV UI Tool: Open Panel` — opens the main webview panel.
 - `UV UI Tool: Open Sidebar` — focuses the UV UI Tool view in the Activity Bar.
 - `UV UI Tool: Open Dependency Graph` — opens the dependency graph (requires `uv.lock`).
-- `UV UI Tool: Hello World` — a simple smoke-test command.
 
 The panel and the sidebar share the same UI and message flow; the dependency graph is a separate webview.
 

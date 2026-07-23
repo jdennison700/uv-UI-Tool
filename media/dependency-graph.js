@@ -28,27 +28,29 @@ const state = {
   searchTerm: ''
 };
 
-let palette = {
-  edge: 'rgba(217, 71, 31, 0.18)',
-  edgeStrong: 'rgba(217, 71, 31, 0.68)',
-  nodePrimary: '#f06a3e',
-  nodeSecondary: '#f59e0b',
-  nodeRelated: '#d9471f',
-  nodeSelected: '#b45309',
+const fallbackPalette = {
+  edge: 'rgba(50, 214, 255, 0.18)',
+  edgeStrong: 'rgba(50, 214, 255, 0.68)',
+  nodePrimary: '#0f9fc9',
+  nodeSecondary: '#5d7286',
+  nodeRelated: '#b8801f',
+  nodeSelected: '#7c5cd6',
   label: '#1e293b'
 };
+
+let palette = { ...fallbackPalette };
 
 const refreshPalette = () => {
   const source = document.body || document.documentElement;
   const cssValue = name => getComputedStyle(source).getPropertyValue(name).trim();
   palette = {
-    edge: cssValue('--edge') || 'rgba(217, 71, 31, 0.18)',
-    edgeStrong: cssValue('--edge-strong') || 'rgba(217, 71, 31, 0.68)',
-    nodePrimary: cssValue('--node-primary') || '#f06a3e',
-    nodeSecondary: cssValue('--node-secondary') || '#f59e0b',
-    nodeRelated: cssValue('--node-related') || '#d9471f',
-    nodeSelected: cssValue('--node-selected') || '#b45309',
-    label: cssValue('--text') || '#1e293b'
+    edge: cssValue('--edge') || fallbackPalette.edge,
+    edgeStrong: cssValue('--edge-strong') || fallbackPalette.edgeStrong,
+    nodePrimary: cssValue('--node-primary') || fallbackPalette.nodePrimary,
+    nodeSecondary: cssValue('--node-secondary') || fallbackPalette.nodeSecondary,
+    nodeRelated: cssValue('--node-related') || fallbackPalette.nodeRelated,
+    nodeSelected: cssValue('--node-selected') || fallbackPalette.nodeSelected,
+    label: cssValue('--text') || fallbackPalette.label
   };
 };
 
@@ -513,6 +515,37 @@ const updateStats = payload => {
   );
 };
 
+const selectNode = nodeId => {
+  state.selectedNodeId = nodeId || null;
+  updateInspector();
+  draw();
+};
+
+// Centres the view on a node: worldToScreen puts a node at screen centre
+// when the pan offsets are its negated world coordinates.
+const centreOnNode = node => {
+  if (!node) {
+    return;
+  }
+
+  state.panX = -node.x;
+  state.panY = -node.y;
+};
+
+// Resolves a search term to a node: exact id, then prefix, then substring.
+const findNodeForSearchTerm = term => {
+  if (!state.graph || !term) {
+    return undefined;
+  }
+
+  const needle = term.toLowerCase();
+  const candidates = state.graph.nodes.filter(node => node.visible);
+
+  return candidates.find(node => node.id.toLowerCase() === needle)
+    || candidates.find(node => node.id.toLowerCase().startsWith(needle))
+    || candidates.find(node => node.id.toLowerCase().includes(needle));
+};
+
 const wireEvents = () => {
   if (!canvas) {
     return;
@@ -562,9 +595,7 @@ const wireEvents = () => {
     }
 
     const node = getNodeAtScreenPoint(event.offsetX, event.offsetY);
-    state.selectedNodeId = node?.id || null;
-    updateInspector();
-    draw();
+    selectNode(node?.id);
   });
 
   canvas.addEventListener('wheel', event => {
@@ -585,6 +616,22 @@ const wireEvents = () => {
   searchInput?.addEventListener('input', event => {
     state.searchTerm = (event.target?.value || '').trim();
     applyFilters();
+  });
+
+  // Keyboard route into the graph: the canvas itself is pointer-only.
+  searchInput?.addEventListener('keydown', event => {
+    if (event.key !== 'Enter') {
+      return;
+    }
+
+    event.preventDefault();
+    const match = findNodeForSearchTerm(state.searchTerm);
+    if (!match) {
+      return;
+    }
+
+    centreOnNode(match);
+    selectNode(match.id);
   });
 
   degreeLimitInput?.addEventListener('change', event => {
