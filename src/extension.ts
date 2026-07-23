@@ -43,7 +43,6 @@ export function activate(context: vscode.ExtensionContext) {
   const openPanelCommand = 'uv-ui-tool.openPanel';
   const openSidebarCommand = 'uv-ui-tool.openSidebar';
   const openDependencyGraphCommand = 'uv-ui-tool.openDependencyGraph';
-  const helloCommand = 'uv-ui-tool.helloWorld';
 
   context.subscriptions.push(
     vscode.commands.registerCommand(openPanelCommand, () => {
@@ -66,12 +65,6 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       UVDependencyGraphPanel.createOrShow(context.extensionUri, parseResult.payload, getCurrentTheme(), parseResult.projectRoot);
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand(helloCommand, () => {
-      vscode.window.showInformationMessage('Hello World from UV UI Tool!');
     })
   );
 
