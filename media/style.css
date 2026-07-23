@@ -344,6 +344,10 @@ input:focus,
   flex-wrap: wrap;
 }
 
+.actions-row {
+  margin-bottom: 1rem;
+}
+
 .command-shell {
   margin-top: 0.85rem;
   display: grid;
