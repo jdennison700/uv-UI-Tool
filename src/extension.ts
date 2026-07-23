@@ -619,8 +619,8 @@ function getHtmlForDependencyGraphWebview(
         <input id="searchInput" type="search" placeholder="e.g. requests" spellcheck="false" />
       </label>
       <label class="control-field control-small">
-        <span>Max edges per node</span>
-        <input id="degreeLimitInput" type="number" min="1" max="200" value="30" />
+        <span>Max connections per package</span>
+        <input id="degreeLimitInput" type="number" min="1" max="200" value="30" title="Packages with more connections than this are hidden from the graph" />
       </label>
       <button id="resetViewButton" type="button" class="btn">Reset view</button>
       <button id="fitViewButton" type="button" class="btn">Fit graph</button>
