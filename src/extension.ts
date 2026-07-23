@@ -4,12 +4,12 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import * as vscode from 'vscode';
 
-type ThemeName = 'light' | 'dark';
+export type ThemeName = 'light' | 'dark';
 const THEME_KEY = 'uv-ui-tool.theme';
 let extensionContextRef: vscode.ExtensionContext | undefined;
 let sidebarProviderRef: UVSidebarProvider | undefined;
 
-function normalizeThemeName(value: unknown): ThemeName {
+export function normalizeThemeName(value: unknown): ThemeName {
   if (value === 'light') {
     return 'light';
   }
@@ -84,28 +84,28 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 type UvDetectionResult = { isUvProject: boolean; projectRoot?: string; message: string };
-type UvLockedPackage = { name: string; version?: string; dependencies: string[] };
-type UvDependenciesPayload = {
+export type UvLockedPackage = { name: string; version?: string; dependencies: string[] };
+export type UvDependenciesPayload = {
   packageCount: number;
   edgeCount: number;
   withoutDependenciesCount: number;
   packages: UvLockedPackage[];
 };
 type UvParseResult = { payload?: UvDependenciesPayload; message: string; projectRoot?: string };
-type DependencyTarget = 'regular' | 'dev';
+export type DependencyTarget = 'regular' | 'dev';
 type WebviewSurface = 'panel' | 'sidebar';
-type PackageAddRequest = {
+export type PackageAddRequest = {
   packageNames: string[];
   dependencyTarget: DependencyTarget;
   versionSpecifier?: string;
 };
-type PythonPinRequest = { version: string };
+export type PythonPinRequest = { version: string };
 type UvPythonVersionEntry = {
   version: string;
   implementation?: string;
   variant?: string;
 };
-type PyPiSearchResult = { name: string; version?: string; summary?: string };
+export type PyPiSearchResult = { name: string; version?: string; summary?: string };
 type PyPiPackageIndex = { names: string[]; loadedAt: number };
 type PyPiPackageMetadataCacheEntry = { result: PyPiSearchResult; loadedAt: number };
 const PYPI_INDEX_CACHE_TTL_MS = 1000 * 60 * 30;
@@ -231,11 +231,11 @@ function sendProjectStatus(webview: vscode.Webview) {
   });
 }
 
-function isStablePythonVersion(version: string): boolean {
+export function isStablePythonVersion(version: string): boolean {
   return /^\d+\.\d+(\.\d+)?$/u.test(version);
 }
 
-function normalizePythonPinRequest(message: unknown): { request?: PythonPinRequest; error?: string } {
+export function normalizePythonPinRequest(message: unknown): { request?: PythonPinRequest; error?: string } {
   const payload = (message && typeof message === 'object') ? message as Record<string, unknown> : undefined;
   const version = typeof payload?.version === 'string' ? payload.version.trim() : '';
 
@@ -250,7 +250,7 @@ function normalizePythonPinRequest(message: unknown): { request?: PythonPinReque
   return { request: { version } };
 }
 
-function comparePythonVersionsDescending(left: string, right: string): number {
+export function comparePythonVersionsDescending(left: string, right: string): number {
   const leftParts = left.split('.').map(part => Number.parseInt(part, 10));
   const rightParts = right.split('.').map(part => Number.parseInt(part, 10));
   const maxLength = Math.max(leftParts.length, rightParts.length);
@@ -265,7 +265,7 @@ function comparePythonVersionsDescending(left: string, right: string): number {
   return 0;
 }
 
-function parseUvPythonListOutput(rawJson: string): string[] {
+export function parseUvPythonListOutput(rawJson: string): string[] {
   const parsed = JSON.parse(rawJson) as unknown;
   if (!Array.isArray(parsed)) {
     throw new Error('uv python list did not return an array.');
@@ -430,15 +430,15 @@ async function createUvProject(webview: vscode.Webview) {
   }
 }
 
-function buildUvPinArgs(request: PythonPinRequest): string[] {
+export function buildUvPinArgs(request: PythonPinRequest): string[] {
   return ['python', 'pin', request.version];
 }
 
-function buildUvPinCommandPreview(request: PythonPinRequest): string {
+export function buildUvPinCommandPreview(request: PythonPinRequest): string {
   return ['uv', ...buildUvPinArgs(request)].map(escapeShellArgForDisplay).join(' ');
 }
 
-function parseDependencyNamesFromArrayBlock(block: string): string[] {
+export function parseDependencyNamesFromArrayBlock(block: string): string[] {
   const dependencyNames = new Set<string>();
   const namePattern = /name\s*=\s*"([^"]+)"/g;
 
@@ -450,7 +450,7 @@ function parseDependencyNamesFromArrayBlock(block: string): string[] {
   return Array.from(dependencyNames);
 }
 
-function parseUvLockDependencies(lockFileContent: string): UvLockedPackage[] {
+export function parseUvLockDependencies(lockFileContent: string): UvLockedPackage[] {
   const lines = lockFileContent.split(/\r?\n/);
   const packages: UvLockedPackage[] = [];
 
@@ -520,7 +520,7 @@ function parseUvLockDependencies(lockFileContent: string): UvLockedPackage[] {
   return packages;
 }
 
-function buildDependenciesPayload(parsedPackages: UvLockedPackage[]): UvDependenciesPayload {
+export function buildDependenciesPayload(parsedPackages: UvLockedPackage[]): UvDependenciesPayload {
   const sortedPackages = [...parsedPackages].sort((a, b) => a.name.localeCompare(b.name));
   const edgeCount = sortedPackages.reduce((sum, pkg) => sum + pkg.dependencies.length, 0);
   const withoutDependenciesCount = sortedPackages.filter(pkg => pkg.dependencies.length === 0).length;
@@ -879,7 +879,7 @@ function postAppendOutput(
   webview?.postMessage({ command: 'appendOutput', text, stream });
 }
 
-function escapeShellArgForDisplay(value: string): string {
+export function escapeShellArgForDisplay(value: string): string {
   if (!value) {
     return '""';
   }
@@ -891,11 +891,11 @@ function escapeShellArgForDisplay(value: string): string {
   return `"${value.replace(/"/g, '\\"')}"`;
 }
 
-function normalizeDependencyTarget(value: unknown): DependencyTarget {
+export function normalizeDependencyTarget(value: unknown): DependencyTarget {
   return value === 'dev' ? 'dev' : 'regular';
 }
 
-function normalizeVersionSpecifier(value: unknown): string | undefined {
+export function normalizeVersionSpecifier(value: unknown): string | undefined {
   if (typeof value !== 'string') {
     return undefined;
   }
@@ -912,15 +912,15 @@ function normalizeVersionSpecifier(value: unknown): string | undefined {
   return `==${trimmed}`;
 }
 
-function isValidPackageName(name: string): boolean {
+export function isValidPackageName(name: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(name);
 }
 
-function toPackageSpecifier(packageName: string, versionSpecifier?: string): string {
+export function toPackageSpecifier(packageName: string, versionSpecifier?: string): string {
   return `${packageName}${versionSpecifier ?? ''}`;
 }
 
-function buildUvAddArgs(request: PackageAddRequest): string[] {
+export function buildUvAddArgs(request: PackageAddRequest): string[] {
   const args = ['add'];
   if (request.dependencyTarget === 'dev') {
     args.push('--dev');
@@ -930,11 +930,11 @@ function buildUvAddArgs(request: PackageAddRequest): string[] {
   return args;
 }
 
-function buildUvAddCommandPreview(request: PackageAddRequest): string {
+export function buildUvAddCommandPreview(request: PackageAddRequest): string {
   return ['uv', ...buildUvAddArgs(request)].map(escapeShellArgForDisplay).join(' ');
 }
 
-function decodeHtmlEntities(raw: string): string {
+export function decodeHtmlEntities(raw: string): string {
   return raw
     .replace(/&quot;/g, '"')
     .replace(/&#x27;/g, '\'')
@@ -946,7 +946,7 @@ function decodeHtmlEntities(raw: string): string {
     .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 }
 
-function parsePyPiSimpleIndexNames(html: string): string[] {
+export function parsePyPiSimpleIndexNames(html: string): string[] {
   const names: string[] = [];
   const anchorRegex = /<a\b[^>]*>([^<]+)<\/a>/gu;
   let match: RegExpExecArray | null;
@@ -1002,7 +1002,7 @@ async function loadPyPiPackageIndex(): Promise<PyPiPackageIndex> {
   }
 }
 
-function normalizePyPiSummary(value: unknown): string | undefined {
+export function normalizePyPiSummary(value: unknown): string | undefined {
   if (typeof value !== 'string') {
     return undefined;
   }
@@ -1011,7 +1011,7 @@ function normalizePyPiSummary(value: unknown): string | undefined {
   return summary || undefined;
 }
 
-function normalizePyPiVersion(value: unknown): string | undefined {
+export function normalizePyPiVersion(value: unknown): string | undefined {
   if (typeof value !== 'string') {
     return undefined;
   }
@@ -1086,7 +1086,7 @@ async function enrichPyPiSearchResults(results: PyPiSearchResult[]): Promise<PyP
   });
 }
 
-function searchPyPiPackageIndex(names: string[], query: string): PyPiSearchResult[] {
+export function searchPyPiPackageIndex(names: string[], query: string): PyPiSearchResult[] {
   const resultLimit = 20;
   const matches = names.filter(packageName => packageName.includes(query));
   matches.sort((left, right) => {
@@ -1119,7 +1119,7 @@ function searchPyPiPackageIndex(names: string[], query: string): PyPiSearchResul
   return matches.slice(0, resultLimit).map(name => ({ name }));
 }
 
-function normalizePackageAddRequest(message: unknown): { request?: PackageAddRequest; error?: string } {
+export function normalizePackageAddRequest(message: unknown): { request?: PackageAddRequest; error?: string } {
   const payload = (message && typeof message === 'object') ? message as Record<string, unknown> : undefined;
   const packageNames = Array.isArray(payload?.packageNames)
     ? Array.from(new Set(
@@ -1351,11 +1351,11 @@ type ShellCommandResult = {
   stderr: string;
 };
 
-function isUvSyncCommand(commandText: string): boolean {
+export function isUvSyncCommand(commandText: string): boolean {
   return /^uv\s+sync(?:\s+.*)?$/iu.test(commandText.trim());
 }
 
-function containsOsError5(stderrText: string): boolean {
+export function containsOsError5(stderrText: string): boolean {
   return /os error 5/iu.test(stderrText);
 }
 
