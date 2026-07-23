@@ -510,8 +510,8 @@ const updateStats = payload => {
   statsEl.innerHTML = '';
   statsEl.append(
     makeStat('Packages', payload.packageCount),
-    makeStat('Edges', payload.edgeCount),
-    makeStat('No deps', payload.withoutDependenciesCount)
+    makeStat('Dependency links', payload.edgeCount),
+    makeStat('No dependencies', payload.withoutDependenciesCount)
   );
 };
 

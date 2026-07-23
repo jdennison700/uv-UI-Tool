@@ -153,8 +153,8 @@ const setDependenciesOutput = message => {
   summary.className = 'deps-summary';
   summary.append(
     createSummaryStat('Packages', packageCount),
-    createSummaryStat('Direct edges', edgeCount),
-    createSummaryStat('No direct deps', withoutDependenciesCount)
+    createSummaryStat('Dependency links', edgeCount),
+    createSummaryStat('No dependencies', withoutDependenciesCount)
   );
 
   const controls = document.createElement('div');
