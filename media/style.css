@@ -3,18 +3,35 @@
   --font-ui: "Inter", "Roboto", "Segoe UI", sans-serif;
   --font-display: "Inter", "Roboto", "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
-  --bg: #0c131a;
-  --bg-elevated: #121c25;
-  --bg-panel: #172330;
+  --bg: #090d12;
+  --bg-elevated: #0f151d;
+  --bg-panel: #131a23;
   --bg-glass: rgba(28, 41, 55, 0.68);
   --text: #e6edf3;
   --text-muted: #9cb2c5;
+  --text-soft: #c6d5e1;
   --accent: #32d6ff;
   --accent-soft: rgba(50, 214, 255, 0.17);
   --danger: #ff8f9e;
   --success: #22c55e;
   --radius: 10px;
   --shadow-soft: 0 10px 28px rgba(0, 0, 0, 0.28);
+
+  /* Layered surfaces, from deepest well to raised control. */
+  --surface-well: #070d13;
+  --surface-sunken: #0e1720;
+  --surface-raised: #111b25;
+  --surface-input: #121e29;
+  --surface-control: #1a2732;
+  --surface-entry: rgba(15, 23, 32, 0.78);
+  --border-subtle: rgba(156, 178, 197, 0.2);
+
+  /* Terminal output syntax tones. */
+  --term-command: #8de9ff;
+  --term-stdout: #d0dde8;
+  --term-system: #f4d58f;
+  --term-package: #9de6ff;
+  --term-version: #79ffc8;
 }
 
 * {
@@ -40,7 +57,7 @@ body[data-sidebar-collapsed='true'] .app-layout {
 }
 
 .tool-sidebar {
-  background: #0f1821;
+  background: var(--surface-sunken);
   border-right: 1px solid rgba(156, 178, 197, 0.12);
   padding: 0.75rem;
   display: grid;
@@ -150,7 +167,7 @@ h1 {
 .icon-btn {
   border: 1px solid rgba(156, 178, 197, 0.24);
   border-radius: 999px;
-  background: #1a2732;
+  background: var(--surface-control);
   color: var(--text);
   cursor: pointer;
 }
@@ -166,7 +183,7 @@ h1 {
   min-width: 12rem;
   border-radius: 10px;
   border: 1px solid rgba(156, 178, 197, 0.24);
-  background: #111b25;
+  background: var(--surface-raised);
   padding: 0.55rem;
   box-shadow: var(--shadow-soft);
 }
@@ -186,7 +203,7 @@ input {
   width: 100%;
   border-radius: 9px;
   border: 1px solid rgba(156, 178, 197, 0.24);
-  background: #121e29;
+  background: var(--surface-input);
   color: var(--text);
   font: inherit;
 }
@@ -199,11 +216,28 @@ input {
   padding: 0.68rem 0.85rem;
 }
 
-input:focus,
-.settings-select:focus {
+input:focus-visible,
+.settings-select:focus-visible,
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.chip:focus-visible,
+.command-entry:focus-visible,
+.sidebar-nav-btn:focus-visible,
+.package-result:focus-visible,
+.deps-control:focus-visible,
+.package-collapsible-summary:focus-visible,
+.command-library-summary:focus-visible,
+.deps-item-summary:focus-visible {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* Summaries are borderless, so the ring needs a radius to follow. */
+.package-collapsible-summary,
+.command-library-summary,
+.deps-item-summary {
+  border-radius: 8px;
 }
 
 .content-card {
@@ -219,7 +253,7 @@ input:focus,
   justify-content: space-between;
   gap: 0.5rem;
   border-radius: 9px;
-  background: #101922;
+  background: var(--surface-sunken);
   border: 1px solid rgba(156, 178, 197, 0.16);
   padding: 0.5rem 0.65rem;
   margin-bottom: 0.8rem;
@@ -233,14 +267,14 @@ input:focus,
   padding: 0.75rem 0.85rem;
   border-radius: 10px;
   border: 1px solid rgba(156, 178, 197, 0.16);
-  background: #0e1720;
+  background: var(--surface-sunken);
   color: var(--text);
   margin-bottom: 0.8rem;
 }
 
 .status-text {
   font-size: 0.8rem;
-  color: #c6d5e1;
+  color: var(--text-soft);
   overflow-wrap: anywhere;
 }
 
@@ -248,8 +282,8 @@ input:focus,
 .package-collapsible,
 .command-library {
   border-radius: 10px;
-  border: 1px solid rgba(156, 178, 197, 0.2);
-  background: #111b25;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
   overflow: clip;
 }
 
@@ -274,7 +308,7 @@ input:focus,
   font-size: 0.75rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #c2d4e1;
+  color: var(--text-soft);
 }
 
 .package-collapsible-hint,
@@ -299,8 +333,8 @@ input:focus,
 .command-entry {
   text-align: left;
   border-radius: 8px;
-  border: 1px solid rgba(156, 178, 197, 0.2);
-  background: rgba(15, 23, 32, 0.78);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-entry);
   color: var(--text);
   padding: 0.46rem 0.56rem;
   cursor: pointer;
@@ -316,7 +350,7 @@ input:focus,
 .command-entry-name {
   font-family: var(--font-mono);
   font-size: 0.75rem;
-  color: #c9f3ff;
+  color: var(--term-package);
 }
 
 .command-entry-desc {
@@ -344,8 +378,11 @@ input:focus,
   flex-wrap: wrap;
 }
 
+/* Separates the standalone graph action from the package adder form below it. */
 .actions-row {
   margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .command-shell {
@@ -363,7 +400,7 @@ input:focus,
 #commandInput {
   font-family: var(--font-mono);
   border-radius: 999px;
-  background: #0f1720;
+  background: var(--surface-sunken);
   border-color: rgba(50, 214, 255, 0.35);
 }
 
@@ -378,7 +415,7 @@ input:focus,
   border-radius: 999px;
   background: var(--bg-glass);
   backdrop-filter: blur(6px);
-  color: #d9e8f3;
+  color: var(--text-soft);
   font-family: var(--font-mono);
   font-size: 0.74rem;
   padding: 0.25rem 0.54rem;
@@ -406,8 +443,8 @@ input:focus,
 }
 
 .btn-secondary {
-  background: #1a2733;
-  color: #cde2f0;
+  background: var(--surface-control);
+  color: var(--text-soft);
 }
 
 .btn:disabled,
@@ -421,8 +458,8 @@ input:disabled,
   margin: 0;
   border-radius: 8px;
   border: 1px dashed rgba(50, 214, 255, 0.38);
-  background: #0f1720;
-  color: #b8d4e8;
+  background: var(--surface-sunken);
+  color: var(--text-soft);
   padding: 0.6rem 0.68rem;
   font-family: var(--font-mono);
   font-size: 0.78rem;
@@ -440,7 +477,7 @@ input:disabled,
 .package-result {
   border: 1px solid rgba(156, 178, 197, 0.22);
   border-radius: 8px;
-  background: #101922;
+  background: var(--surface-sunken);
   color: var(--text);
   padding: 0.46rem 0.58rem;
   text-align: left;
@@ -500,11 +537,11 @@ h2 {
   max-height: 18rem;
   overflow: auto;
   border-radius: 9px;
-  border: 1px solid rgba(156, 178, 197, 0.2);
-  background: #070d13;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-well);
   box-shadow: inset 0 0 0 1px rgba(156, 178, 197, 0.08);
   padding: 0.74rem;
-  color: #d0dde8;
+  color: var(--term-stdout);
   font-family: var(--font-mono);
   font-size: 0.82rem;
   line-height: 1.43;
@@ -520,11 +557,11 @@ h2 {
 }
 
 .terminal-command {
-  color: #8de9ff;
+  color: var(--term-command);
 }
 
 .terminal-stdout {
-  color: #d0dde8;
+  color: var(--term-stdout);
 }
 
 .terminal-stderr {
@@ -532,15 +569,15 @@ h2 {
 }
 
 .terminal-system {
-  color: #f4d58f;
+  color: var(--term-system);
 }
 
 .terminal-package {
-  color: #9de6ff;
+  color: var(--term-package);
 }
 
 .terminal-version {
-  color: #79ffc8;
+  color: var(--term-version);
 }
 
 .output-dependencies {
@@ -557,7 +594,7 @@ h2 {
 .deps-item {
   border-radius: 8px;
   border: 1px solid rgba(156, 178, 197, 0.18);
-  background: #0e1720;
+  background: var(--surface-sunken);
 }
 
 .deps-stat {
@@ -579,8 +616,8 @@ h2 {
 .deps-control {
   border: 1px solid rgba(156, 178, 197, 0.24);
   border-radius: 999px;
-  background: #172431;
-  color: #d8e8f4;
+  background: var(--surface-control);
+  color: var(--text-soft);
   font: inherit;
   font-size: 0.74rem;
   padding: 0.2rem 0.54rem;
@@ -632,17 +669,34 @@ h2 {
 }
 
 body[data-theme='light'] {
+  color-scheme: light;
   --bg: #f4f8fc;
   --bg-elevated: #ffffff;
   --bg-panel: #ffffff;
   --bg-glass: rgba(255, 255, 255, 0.78);
   --text: #1f2d3a;
   --text-muted: #5d7286;
+  --text-soft: #1f2d3a;
   --accent: #1ea8d0;
   --accent-soft: rgba(30, 168, 208, 0.18);
   background: radial-gradient(circle at 0% 0%, #e8f4ff 0%, transparent 42%), var(--bg);
+
+  --surface-well: #f7fbff;
+  --surface-sunken: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-input: #ffffff;
+  --surface-control: #f4f8fc;
+  --surface-entry: #ffffff;
+  --border-subtle: rgba(62, 101, 136, 0.22);
+
+  --term-command: #0b7c9d;
+  --term-stdout: #1f2d3a;
+  --term-system: #9a6a10;
+  --term-package: #0b7c9d;
+  --term-version: #0f7a52;
 }
 
+/* Borders and text that the surface variables above don't cover. */
 body[data-theme='light'] .tool-sidebar,
 body[data-theme='light'] .status-bar,
 body[data-theme='light'] .python-version-card,
@@ -652,67 +706,30 @@ body[data-theme='light'] .package-result,
 body[data-theme='light'] .package-preview,
 body[data-theme='light'] .output,
 body[data-theme='light'] .deps-stat,
-body[data-theme='light'] .deps-item {
-  background: #ffffff;
-  border-color: rgba(62, 101, 136, 0.22);
-  color: #1f2d3a;
-}
-
-body[data-theme='light'] .status-header,
-body[data-theme='light'] .content-card,
-body[data-theme='light'] .settings-menu {
-  background: #ffffff;
-}
-
-body[data-theme='light'] .project-creation-callout {
-  background: #f4f8fc;
-  border-color: rgba(62, 101, 136, 0.22);
-  color: #1f2d3a;
-}
-
+body[data-theme='light'] .deps-item,
 body[data-theme='light'] .sidebar-nav-btn,
 body[data-theme='light'] .btn-secondary,
 body[data-theme='light'] .deps-control,
 body[data-theme='light'] .icon-btn {
-  background: #f4f8fc;
-  color: #1f2d3a;
-  border-color: rgba(62, 101, 136, 0.22);
+  border-color: var(--border-subtle);
+  color: var(--text);
+}
+
+/* Callout is sunken in dark but control-toned in light; no single variable fits. */
+body[data-theme='light'] .project-creation-callout {
+  background: var(--surface-control);
+  border-color: var(--border-subtle);
 }
 
 body[data-theme='light'] input,
 body[data-theme='light'] .settings-select,
 body[data-theme='light'] #commandInput {
-  background: #ffffff;
-  color: #1f2d3a;
   border-color: rgba(62, 101, 136, 0.26);
 }
 
 body[data-theme='light'] .chip {
   background: rgba(255, 255, 255, 0.9);
-  color: #1f2d3a;
   border-color: rgba(62, 101, 136, 0.24);
-}
-
-body[data-theme='light'] .output {
-  background: #f7fbff;
-}
-
-body[data-theme='light'] .terminal-stdout {
-  color: #1f2d3a;
-}
-
-body[data-theme='light'] .terminal-command {
-  color: #0b7c9d;
-}
-
-body[data-theme='light'] .terminal-system {
-  color: #9a6a10;
-}
-
-body[data-theme='dark'] {
-  --bg: #090d12;
-  --bg-elevated: #0f151d;
-  --bg-panel: #131a23;
 }
 
 body[data-surface='sidebar'] .app-layout {
@@ -746,7 +763,8 @@ body[data-surface='sidebar'] .tool-sidebar {
   }
 
   .command-row,
-  .package-options {
+  .package-options,
+  .deps-summary {
     grid-template-columns: 1fr;
   }
 

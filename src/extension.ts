@@ -624,6 +624,12 @@ function getHtmlForDependencyGraphWebview(
       </label>
       <button id="resetViewButton" type="button" class="btn">Reset view</button>
       <button id="fitViewButton" type="button" class="btn">Fit graph</button>
+      <ul class="graph-legend" aria-label="Node colour key">
+        <li><span class="graph-legend-swatch swatch-primary" aria-hidden="true"></span>Direct</li>
+        <li><span class="graph-legend-swatch swatch-secondary" aria-hidden="true"></span>Transitive</li>
+        <li><span class="graph-legend-swatch swatch-related" aria-hidden="true"></span>Related</li>
+        <li><span class="graph-legend-swatch swatch-selected" aria-hidden="true"></span>Selected</li>
+      </ul>
     </section>
 
     <section class="graph-panel">
@@ -679,7 +685,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
         </div>
         <div class="status-header-actions">
           <span id="connectionIndicator" class="connection-pill disconnected">Disconnected</span>
-          <button id="openSettingsButton" class="icon-btn" type="button" title="Open settings" aria-label="Open settings">⚙</button>
+          <button id="openSettingsButton" class="icon-btn" type="button" title="Open settings" aria-label="Open settings" aria-expanded="false" aria-controls="settingsMenu">⚙</button>
           <div id="settingsMenu" class="settings-menu" hidden>
             <label for="themeSelect" class="settings-label">Theme</label>
             <select id="themeSelect" class="settings-select">
@@ -698,7 +704,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
 
         <div id="projectCreationPrompt" class="project-creation-callout" hidden>
           <span>No UV project detected. Create a UV project to continue.</span>
-          <button id="createProjectButton" type="button" class="btn btn-secondary">Create UV project</button>
+          <button id="createProjectButton" type="button" class="btn btn-primary">Create UV project</button>
         </div>
 
         <details class="python-version-card" open>
@@ -799,7 +805,7 @@ function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, su
       <section id="advancedSection" class="content-card advanced-tools-card">
         <h2 class="section-heading">Advanced tools</h2>
         <section class="actions-row">
-          <button id="parseDependenciesButton" class="btn btn-secondary">Open dependency graph</button>
+          <button id="parseDependenciesButton" class="btn btn-primary">Open dependency graph</button>
         </section>
 
         <details class="package-card package-collapsible">

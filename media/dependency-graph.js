@@ -28,27 +28,29 @@ const state = {
   searchTerm: ''
 };
 
-let palette = {
-  edge: 'rgba(217, 71, 31, 0.18)',
-  edgeStrong: 'rgba(217, 71, 31, 0.68)',
-  nodePrimary: '#f06a3e',
-  nodeSecondary: '#f59e0b',
-  nodeRelated: '#d9471f',
-  nodeSelected: '#b45309',
+const fallbackPalette = {
+  edge: 'rgba(50, 214, 255, 0.18)',
+  edgeStrong: 'rgba(50, 214, 255, 0.68)',
+  nodePrimary: '#0f9fc9',
+  nodeSecondary: '#5d7286',
+  nodeRelated: '#b8801f',
+  nodeSelected: '#7c5cd6',
   label: '#1e293b'
 };
+
+let palette = { ...fallbackPalette };
 
 const refreshPalette = () => {
   const source = document.body || document.documentElement;
   const cssValue = name => getComputedStyle(source).getPropertyValue(name).trim();
   palette = {
-    edge: cssValue('--edge') || 'rgba(217, 71, 31, 0.18)',
-    edgeStrong: cssValue('--edge-strong') || 'rgba(217, 71, 31, 0.68)',
-    nodePrimary: cssValue('--node-primary') || '#f06a3e',
-    nodeSecondary: cssValue('--node-secondary') || '#f59e0b',
-    nodeRelated: cssValue('--node-related') || '#d9471f',
-    nodeSelected: cssValue('--node-selected') || '#b45309',
-    label: cssValue('--text') || '#1e293b'
+    edge: cssValue('--edge') || fallbackPalette.edge,
+    edgeStrong: cssValue('--edge-strong') || fallbackPalette.edgeStrong,
+    nodePrimary: cssValue('--node-primary') || fallbackPalette.nodePrimary,
+    nodeSecondary: cssValue('--node-secondary') || fallbackPalette.nodeSecondary,
+    nodeRelated: cssValue('--node-related') || fallbackPalette.nodeRelated,
+    nodeSelected: cssValue('--node-selected') || fallbackPalette.nodeSelected,
+    label: cssValue('--text') || fallbackPalette.label
   };
 };
 

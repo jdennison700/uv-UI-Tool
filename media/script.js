@@ -639,13 +639,22 @@ sidebarNavButtons.forEach(button => {
   });
 });
 
+const setSettingsMenuOpen = open => {
+  if (!settingsMenu) {
+    return;
+  }
+
+  settingsMenu.hidden = !open;
+  openSettingsButton?.setAttribute('aria-expanded', String(open));
+};
+
 openSettingsButton?.addEventListener('click', event => {
   event.stopPropagation();
   if (!settingsMenu) {
     return;
   }
 
-  settingsMenu.hidden = !settingsMenu.hidden;
+  setSettingsMenuOpen(settingsMenu.hidden);
 });
 
 document.addEventListener('click', event => {
@@ -657,7 +666,7 @@ document.addEventListener('click', event => {
     return;
   }
 
-  settingsMenu.hidden = true;
+  setSettingsMenuOpen(false);
 });
 
 themeSelect?.addEventListener('change', () => {
