@@ -3,7 +3,7 @@
   "displayName": "UV UI Tool",
   "description": "A VS Code extension providing a UI to run uv commands.",
   "version": "0.0.1",
-  "publisher": "jdennison700",
+  "publisher": "jdennison70",
   "repository": {
     "type": "git",
     "url": "https://github.com/jdennison700/uv-UI-Tool.git"
